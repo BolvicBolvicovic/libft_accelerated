@@ -209,5 +209,12 @@ int	main(void)
 	assert(ft_strlen(dest4) == ret4);
 	assert(ft_strlen("This is a longer string to test strlcat function.") == ret4);
 
+	// Note: tests for ft_strchr
+	char*	str1 = "This is a longer string to test strchr function.";
+	assert(ft_strchr(str1, 'a') == str1 + 8);
+	assert(ft_strchr(str1, 't') == str1 + 18);
+	assert(ft_strchr(str1, 'z') == NULL);
+	assert(ft_strchr(str1, 0) == str1 + ft_strlen(str1));
+
 	return (0);
 }

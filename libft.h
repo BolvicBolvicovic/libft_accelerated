@@ -18,7 +18,7 @@ typedef _Bool		bool;
 #include <emmintrin.h>
 #include <immintrin.h>
 
-// Note: All SIMD operations are 16 bytes wide.
+// Note: All SIMD operations are currently 16 bytes wide.
 #define Zero _mm_setzero_si128
 #define Loader(a) (uintptr_t)a & 15 ? load_unaligned : load_aligned
 #define Store(a, b) _mm_store_si128(a, b)
@@ -395,10 +395,37 @@ ft_strlcat(char* dst, const char* src, size_t size)
 	return (DstLen + ft_strlcpy(dst + DstLen, src, size - DstLen));
 }
 
-//function char*
-//ft_strchr(char* s, uint8 c)
-//{
-//	
-//}
+function char*
+ft_strchr(char* s, uint8 c)
+{
+	s -= 1;
+	while ((uintptr_t)++s & 15)
+	{
+		if (*s == 0 || *s == c)
+		{
+			return s;
+		}
+	}
+	
+	__m128i	zero = Zero();
+	__m128i	Value = Set1_uint8(c);
+
+	while (true)
+	{
+		__m128i	Chunk = load_aligned((__m128i*)s);
+		__m128i	CmpV = CmpEq_uint8(Chunk, Value);
+		__m128i	CmpZ = CmpEq_uint8(Chunk, zero);
+
+		if ((uint128)CmpV | (uint128)CmpZ)
+		{
+			size_t VLen = BitScanForward(MoveMask_uint8(CmpV));
+			size_t ZLen = BitScanForward(MoveMask_uint8(CmpZ)); 	
+
+			return VLen <= ZLen ? s + VLen : NULL;
+		}
+
+		s += 16;
+	}
+}
 
 #endif /* LIBFT_H */
