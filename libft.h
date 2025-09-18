@@ -14,24 +14,27 @@ typedef _Bool		bool;
 
 #define INT_MIN (-2147483648)
 #define INT_MAX 2147483647
+#define SIZE_T_MAX ((size_t)-1)
+#define SSIZE_T_MIN ((ssize_t)-1)
 
 #include <emmintrin.h>
 #include <immintrin.h>
 
 // Note: All SIMD operations are currently 16 bytes wide.
-#define Zero _mm_setzero_si128
-#define Loader(a) (uintptr_t)a & 15 ? load_unaligned : load_aligned
-#define Store(a, b) _mm_store_si128(a, b)
-#define Set1_uint8(a) _mm_set1_epi8(a)
-#define CmpEq_uint8(a, b) _mm_cmpeq_epi8(a, b)
-#define MoveMask_uint8(a) _mm_movemask_epi8(a)
+#define Aligned(a) (((uintptr_t)(a) & (sizeof(__m128i) - 1)) == 0)
+#define Zero (_mm_setzero_si128)
+#define GetLoader(a) (Aligned(a) ? load_aligned : load_unaligned)
+#define GetStore(a) (Aligned(a) ? store_aligned : store_unaligned)
+#define Set1_uint8(a) (_mm_set1_epi8(a))
+#define CmpEq_uint8(a, b) (_mm_cmpeq_epi8(a, b))
+#define MoveMask_uint8(a) (_mm_movemask_epi8(a))
 // Note: Returns the number of trailing 0-bits in x, starting at the least significant bit position.
-#define BitScanForward(a) _tzcnt_u32(a)
+#define BitScanForward(a) (_tzcnt_u32(a))
 
 extern int* __errno_location(void);
 
 
-// Note: Function wrapper necessary for conditional loading
+// Note: Function wrappers necessary for aligned/unaligned selection 
 function inline __m128i
 load_aligned(const __m128i* ptr)
 {
@@ -42,6 +45,18 @@ function inline __m128i
 load_unaligned(const __m128i* ptr)
 {
 	return _mm_loadu_si128(ptr);
+}
+
+function inline void
+store_aligned(__m128i* ptr, __m128i a)
+{
+	_mm_store_si128(ptr, a);
+}
+
+function inline void
+store_unaligned(__m128i* ptr, __m128i a)
+{
+	_mm_storeu_si128(ptr, a);
 }
 
 function inline bool
@@ -120,21 +135,13 @@ ft_write(int fd, const void* buf, size_t count)
 function size_t
 ft_strlen(const char* s)
 {
+	__m128i			(*load)(const __m128i*) = GetLoader(s);
 	const __m128i	zero = Zero();
-	char*		tmp = (char*)s - 1;
-
-	// Note: Making the tmp pointer 16-bit align to get ready for SIMD operation.
-	while (((uintptr_t)++tmp & 15))
-	{
-		if (!(*tmp))
-		{
-			return tmp - s;
-		}
-	}
+	char*			tmp = (char*)s;
 
 	while (true)
 	{
-		__m128i	chunk = load_aligned((const __m128i*)tmp);
+		__m128i	chunk = load((const __m128i*)tmp);
 		__m128i	cmp = CmpEq_uint8(chunk, zero);
 
 		if ((uint128)cmp)
@@ -152,21 +159,13 @@ ft_memset(void* s, uint8 c, size_t n)
 	void*	SStart = s;
 	void*	SEnd = s + n;
 
-	// Note: Align pointer
-	while ((uintptr_t)s & 15 && n--)
-	{
-		*(uint8*)s++ = c;
-	}
-
-	n = SEnd - s;
-
-	// Note: Bulk values
+	void	(*store)(__m128i*, __m128i) = GetStore(s);
 	__m128i	Value = Set1_uint8((uint8)c);
 	void*	Bulk = s + ((n / 16) * 16);
 
 	while (s < Bulk)
 	{
-		Store((__m128i*)s, Value);
+		store((__m128i*)s, Value);
 		s += 16;
 	}
 
@@ -180,22 +179,15 @@ ft_memset(void* s, uint8 c, size_t n)
 function void
 ft_bzero(void* s, size_t n)
 {
+	void	(*store)(__m128i*, __m128i) = GetStore(s);
+	__m128i	Value = Zero();
 	void*	SStart = s;
 	void*	SEnd = s + n;
-	
-	// Note: Align pointer
-	while ((uintptr_t)s & 15 && n--)
-	{
-		*(uint8*)s++ = 0;
-	}
-
-	// Note: Bulk values
-	__m128i	Value = Zero();
 	void*	Bulk = s + ((n / 16) * 16);
 
 	while (s < Bulk)
 	{
-		Store((__m128i*)s, Value);
+		store((__m128i*)s, Value);
 		s += 16;
 	}
 
@@ -214,21 +206,25 @@ ft_memcpy(void* dst, const uint8 *src, size_t n)
 		return dst;
 	}
 
+	__m128i	(*load)(const __m128i*);
+	void	(*store)(__m128i*, __m128i);
 	void*	DstStart = dst;
 	void*	DstEnd = dst + n;
+	void*	Bulk = dst + ((n / 16) * 16);
 
-	while ((uintptr_t)dst & 15 && n--)
+	if (Aligned(dst) && Aligned(src))
 	{
-		*(uint8*)dst++ = *src++;
+		load = load_aligned;
+		store = store_aligned;
+	} else {
+		load = load_unaligned;
+		store = store_unaligned;
 	}
 
-	void*	Bulk = dst + ((n / 16) * 16);
-	__m128i	(*load)(const __m128i*) = Loader(src);
-	
 	while (dst < Bulk)
 	{
 		__m128i	Value = load((const __m128i*)src);
-		Store((__m128i*)dst, Value);
+		store((__m128i*)dst, Value);
 		dst += 16;
 		src += 16;
 	}
@@ -244,33 +240,37 @@ ft_memcpy(void* dst, const uint8 *src, size_t n)
 function void*
 ft_memmove(void* dst, const uint8* src, size_t n)
 {
-	if (dst <= (void*)src)
+	if ((uint8*)dst <= src || (uint8*)dst >= src + n)
 	{
 		return ft_memcpy(dst, src, n);
 	}
 
 	uint8*	SrcEnd = (uint8*)src + n;
 	uint8*	DstEnd = (uint8*)dst + n;
-	
-	while ((uintptr_t)DstEnd & 15 && n--)
-	{
-		*--DstEnd = *--SrcEnd;
-	}
-
+	__m128i	(*load)(const __m128i*);
+	void	(*store)(__m128i*, __m128i);
 	uint8*	Bulk = DstEnd - ((n / 16) * 16);
-	__m128i	(*load)(const __m128i*) = Loader(SrcEnd);
+
+	if (Aligned(SrcEnd) && Aligned(DstEnd))
+	{
+		load = load_aligned;
+		store = store_aligned;
+	} else {
+		load = load_unaligned;
+		store = store_unaligned;
+	}
 
 	while (DstEnd > Bulk)
 	{
 		DstEnd -= 16;
 		SrcEnd -= 16;
 		__m128i	Value = load((const __m128i*)SrcEnd);
-		Store((__m128i*)DstEnd, Value);
+		store((__m128i*)DstEnd, Value);
 	}
 
-	while (DstEnd >= (uint8*)dst)
+	while (DstEnd > (uint8*)dst)
 	{
-		*DstEnd-- = *SrcEnd--;
+		*--DstEnd = *--SrcEnd;
 	}
 
 	return dst;
@@ -316,70 +316,19 @@ ft_itoa(char dst[12], int n)
 	return dst;
 }
 
-// Note: Memory overlap is not handled
 function size_t
 ft_strlcpy(char* dst, const char* src, size_t size)
 {
-	const char*	SrcStart = src;
-	char*		DstEnd = dst + size;
-	size_t		SizeTmp = size;
+	size_t		SrcLen = ft_strlen(src);
 
-	if (SizeTmp)
+	if (size)
 	{
-		while ((uintptr_t)dst & 15 && SizeTmp--)
-		{
-			if (!(*dst++ = *src++))
-			{
-				return (src - SrcStart - 1);
-			}
-		}
-
-		__m128i	zero = Zero();
-		__m128i	(*load)(const __m128i*) = Loader(src);
-		char*	Bulk = dst + (SizeTmp / 16) * 16;
-
-		while (dst < Bulk)
-		{
-			__m128i	Value = load((const __m128i*)src);
-			__m128i	cmp = CmpEq_uint8(Value, zero);
-
-			if ((uint128)cmp)
-			{
-				while (SizeTmp-- > 0)
-				{
-					if (!(*dst++ = *src++))
-					{
-						return (src - SrcStart - 1);
-					}
-				}
-				goto end;
-			}
-
-			Store((__m128i*)dst, Value);
-			dst += 16;
-			src += 16;
-			SizeTmp -= 16;
-		}
-
-		while (dst < DstEnd && SizeTmp)
-		{
-			if (!(*dst++ = *src++))
-			{
-				return (src - SrcStart - 1);
-			}
-			SizeTmp--;
-		}
+		size_t		ToCopy = SrcLen < size ? SrcLen : size - 1;
+		ft_memcpy(dst, src, ToCopy);
+		dst[ToCopy] = 0;
 	}
 
-end:
-	if (!SizeTmp && size)
-	{
-		*dst = 0;
-	}
-
-	while (*src++);
-
-	return (src - SrcStart - 1);
+	return SrcLen;
 }
 	
 function size_t
@@ -398,21 +347,13 @@ ft_strlcat(char* dst, const char* src, size_t size)
 function char*
 ft_strchr(char* s, uint8 c)
 {
-	s -= 1;
-	while ((uintptr_t)++s & 15)
-	{
-		if (*s == 0 || *s == c)
-		{
-			return s;
-		}
-	}
-	
+	__m128i	(*load)(const __m128i*) = GetLoader(s);
 	__m128i	zero = Zero();
 	__m128i	Value = Set1_uint8(c);
 
 	while (true)
 	{
-		__m128i	Chunk = load_aligned((__m128i*)s);
+		__m128i	Chunk = load((__m128i*)s);
 		__m128i	CmpV = CmpEq_uint8(Chunk, Value);
 		__m128i	CmpZ = CmpEq_uint8(Chunk, zero);
 

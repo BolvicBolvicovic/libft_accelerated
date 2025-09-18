@@ -213,7 +213,7 @@ int	main(void)
 	char*	str1 = "This is a longer string to test strchr function.";
 	assert(ft_strchr(str1, 'a') == str1 + 8);
 	assert(ft_strchr(str1, 't') == str1 + 18);
-	assert(ft_strchr(str1, 'z') == NULL);
+	assert(ft_strchr(str1, 'z') == 0);
 	assert(ft_strchr(str1, 0) == str1 + ft_strlen(str1));
 
 	return (0);
