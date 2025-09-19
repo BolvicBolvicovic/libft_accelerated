@@ -91,14 +91,12 @@ typedef _Bool			bool;
 #define true			1
 #define false			0
 
-
 static const size_t		ByteSize = 8;
 static const size_t		UCharMax = 255;
 static const size_t		IntMin = -2147483648;
 static const size_t		IntMax = 2147483647;
 static const size_t		SizeTMax = ((size_t)-1);
 static const size_t		SSizeTMin = (ssize_t)-1;
-
 
 static const size_t		WordSize = (sizeof(word));
 static const size_t		WordAlignSize = (WordSize - 1);
@@ -133,11 +131,17 @@ FirstZero(word x)
 
 #define RepeatByteInWord(a)	((word)((uint8)(a) * LSB))
 
-// Find all zeros in a word
+// Note: Explanation
+// 1. Mask out all MSB to avoid them being carried on the next byte when we are adding.
+// 2. Adding Mask so that only 0-byte turn into 0x7f.
+// 3. Since we masked out the MSB, if one of the byte had it set, OR to add it and OR to set all bits that are not MSB to 1.
+// 4. Invert so that only where there is an MSB, it is a 0-byte.
 function __always_inline  word
 AllZeros(word x)
 {
-	word m = (RepeatByteInWord(0x7f));
+	// Note: Masking MSB => 0x7f == 0b01111111
+	static const word	m = (RepeatByteInWord(0x7f));
+
 	return ~(((x & m) + m) | x | m);
 }
 
@@ -149,52 +153,67 @@ AllZeros(word x)
 function __always_inline vector128
 load_aligned128(const vector128* ptr)
 {
+#if defined(__SSE2__)
 	return _mm_load_si128(ptr);
+#endif
 }
 
 function __always_inline vector128
 load_unaligned128(const vector128* ptr)
 {
+#if defined(__SSE2__)
 	return _mm_loadu_si128(ptr);
+#endif
 }
 
 function __always_inline void
 store_aligned128(vector128* ptr, vector128 a)
 {
+#if defined(__SSE2__)
 	_mm_store_si128(ptr, a);
+#endif
 }
 
 function __always_inline void
 store_unaligned128(vector128* ptr, vector128 a)
 {
+#if defined(__SSE2__)
 	_mm_storeu_si128(ptr, a);
+#endif
 }
-
 #endif // defined(__SSE2__) || defined(__aarch64__) || defined(_M_ARM64)
 
 #if defined(__AVX__)
 function __always_inline vector256
 load_aligned256(const vector256* ptr)
 {
+#if defined(__AVX__)
 	return _mm256_load_si256(ptr);
+#endif
 }
 
 function __always_inline vector256
 load_unaligned256(const vector256* ptr)
 {
+#if defined(__AVX__)
 	return _mm256_loadu_si256(ptr);
+#endif
 }
 
 function __always_inline void
 store_aligned256(vector256* ptr, vector256 a)
 {
+#if defined(__AVX__)
 	_mm256_store_si256(ptr, a);
+#endif
 }
 
 function __always_inline void
 store_unaligned256(vector256* ptr, vector256 a)
 {
+#if defined(__AVX__)
 	_mm256_storeu_si256(ptr, a);
+#endif
 }
 #endif // defined(__AVX__)
 
@@ -277,7 +296,6 @@ ft_write(int fd, const void* buf, size_t count)
 function size_t
 ft_strlen(const char* s)
 {
-
 #if defined(__SSE2__)
 	const char* 	start = s;
 	vector128	zero = Zero128();
@@ -315,7 +333,7 @@ ft_strlen(const char* s)
 			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
 			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
 			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
-			return s - start + BitScanForward(mask);
+			return (const char*)vs - start + BitScanForward(mask);
 		}
 
 		vs += 4;
@@ -328,7 +346,7 @@ ft_strlen(const char* s)
 			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
 			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
 			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
-			return s - start + BitScanForward(mask);
+			return (const char*)vs - start + BitScanForward(mask);
 		}
 		vs += 4;
 	}
