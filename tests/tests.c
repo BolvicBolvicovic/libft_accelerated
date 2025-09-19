@@ -1,4 +1,4 @@
-#include "libft.h"
+#include "../libft.h"
 
 #define __ASSERT_FUNCTION	((const char *) 0)
 #define assert(expr)					\
@@ -21,7 +21,6 @@ __assert_fail (const char *__assertion, const char *__file,
 	ft_write(2, line, ft_strlen(line));
 
 	ft_write(2, "\n", 1);
-	// TODO: Convert line number to string and print it
     asm volatile("mov $60, %rax; mov $1, %rdi; syscall");
 }
 
