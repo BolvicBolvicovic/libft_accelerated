@@ -19,10 +19,13 @@
 typedef __m128i			vector128;
 #define Aligned128(a)		(((uintptr)(a) & (sizeof(vector128) - 1)) == 0)
 #define Zero128			(_mm_setzero_si128)
+// TODO: Delete these two macros as they are not good for performance.
 #define GetLoader128(a)		(Aligned128(a) ? load_aligned128 : load_unaligned128)
 #define GetStore128(a)		(Aligned128(a) ? store_aligned128 : store_unaligned128)
-#define Set1_uint8(a)		(_mm_set1_epi8(a))
-#define CmpEq_uint8(a, b)	(_mm_cmpeq_epi8(a, b))
+// ENDTODO
+#define Set1_int8(a)		(_mm_set1_epi8(a))
+#define CmpEq_int8(a, b)	(_mm_cmpeq_epi8(a, b))
+#define Min_uint8(a, b)		(_mm_min_epu8(a, b))
 #define MoveMask_uint8(a)	(_mm_movemask_epi8(a))
 
 #endif // __SSE2__
@@ -34,8 +37,8 @@ typedef __m256i			vector256;
 #define Zero256			(_mm256_setzero_si256)
 #define GetLoader256(a)		(Aligned256(a) ? load_aligned256 : load_unaligned256)
 #define GetStore256(a)		(Aligned256(a) ? store_aligned256 : store_unaligned256)
-#define Set1_uint8_256(a)	(_mm256_set1_epi8(a))
-#define CmpEq_uint8_256(a, b)	(_mm256_cmpeq_epi8(a, b))
+#define Set1_int8_256(a)	(_mm256_set1_epi8(a))
+#define CmpEq_int8_256(a, b)	(_mm256_cmpeq_epi8(a, b))
 #define MoveMask_uint8_256(a)	(_mm256_movemask_epi8(a))
 
 #endif // __AVX__
@@ -80,6 +83,7 @@ typedef size_t			word;
 
 typedef unsigned long 		uintptr;
 typedef unsigned char 		uint8;
+typedef unsigned		uint32;
 typedef long int		ssize_t;
 typedef __int128_t		uint128;
 typedef _Bool			bool;
@@ -140,9 +144,6 @@ AllZeros(word x)
 #define WordAlignDown(a)	((__typeof__(a)) ((uintptr)(a) & -WordSize))
 
 #define	ShiftFind(a, s_int)	((a) >> (ByteSize * ((s_int) % WordSize)))
-
-
-
 
 #if defined(__SSE2__) || defined(__aarch64__) || defined(_M_ARM64)
 function __always_inline vector128
@@ -278,10 +279,16 @@ ft_strlen(const char* s)
 {
 
 #if defined(__SSE2__)
-	const char* start = s;
+	const char* 	start = s;
 	vector128	zero = Zero128();
-	word*	w_ptr = (word*)WordAlignDown(s);
-	word	mask = ShiftFind(AllZeros(*w_ptr), (const uintptr)s);
+	vector128*	vs;
+	uint32		mask0;
+	uint32		mask1;
+	uint32		mask2;
+	uint32		mask3;
+	word*		w_ptr = (word*)WordAlignDown(s);
+	word		mask = ShiftFind(AllZeros(*w_ptr), (const uintptr)s);
+
 
 	if (mask)
 	{
@@ -295,19 +302,37 @@ ft_strlen(const char* s)
 		 return ((const char*)w_ptr + ByteScanForward(mask) - s);
 	}
 
-	s = (const char*)w_ptr;
+	vs = (vector128*)w_ptr;
 
 	while (true)
 	{
-		vector128	chunk = load_aligned128((const vector128*)s);
-		int		mask = MoveMask_uint8(CmpEq_uint8(chunk, zero));
+		mask0 = MoveMask_uint8(CmpEq_int8(zero, Min_uint8(Min_uint8(vs[0], vs[1]), Min_uint8(vs[2], vs[3]))));
 
-		if (mask)
+		if (mask0)
 		{
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
+			mask1 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
+			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
+			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
+			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
 			return s - start + BitScanForward(mask);
 		}
-		s += 16;
+
+		vs += 4;
+		mask0 = MoveMask_uint8(CmpEq_int8(zero, Min_uint8(Min_uint8(vs[0], vs[1]), Min_uint8(vs[2], vs[3]))));
+
+		if (mask0)
+		{
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
+			mask1 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
+			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
+			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
+			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
+			return s - start + BitScanForward(mask);
+		}
+		vs += 4;
 	}
+
 #else
 	word*	w_ptr = (word*)WordAlignDown(s);
 	word	mask = ShiftFind(AllZeros(*w_ptr), (const uintptr)s);
@@ -331,7 +356,7 @@ ft_memset(void* s, uint8 c, size_t n)
 	void*	SEnd = s + n;
 
 	void	(*store)(vector128*, vector128) = GetStore128(s);
-	vector128	Value = Set1_uint8((uint8)c);
+	vector128	Value = Set1_int8((uint8)c);
 	void*	Bulk = s + ((n / 16) * 16);
 
 	while (s < Bulk)
@@ -522,13 +547,13 @@ ft_strchr(char* s, uint8 c)
 {
 	vector128	(*load)(const vector128*) = GetLoader128(s);
 	vector128	zero = Zero128();
-	vector128	Value = Set1_uint8(c);
+	vector128	Value = Set1_int8(c);
 
 	while (true)
 	{
 		vector128	Chunk = load((vector128*)s);
-		vector128	CmpV = CmpEq_uint8(Chunk, Value);
-		vector128	CmpZ = CmpEq_uint8(Chunk, zero);
+		vector128	CmpV = CmpEq_int8(Chunk, Value);
+		vector128	CmpZ = CmpEq_int8(Chunk, zero);
 
 		if ((uint128)CmpV | (uint128)CmpZ)
 		{
