@@ -104,6 +104,7 @@ int	main(void)
 	// Note: tests for ft_memset
 	char	buf1[20];
 	char	buf2[20];
+	char	buf1000[1000];
 	ft_memset(buf1, 'A', 20);
 	for (size_t i = 0; i < 20; i++)
 	{
@@ -113,6 +114,11 @@ int	main(void)
 	for (size_t i = 0; i < 5; i++)
 	{
 		assert(buf2[i] == 'B');
+	}
+	ft_memset(buf1000, 'B', 1000);
+	for (size_t i = 0; i < 1000; i++)
+	{
+		assert(buf1000[i] == 'B');
 	}
 	ft_memset(buf2 + 5, 'C', 10);
 	for (size_t i = 0; i < 5; i++)

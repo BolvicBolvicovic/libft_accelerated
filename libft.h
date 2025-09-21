@@ -16,30 +16,31 @@
 
 #if defined(__SSE2__)
 
-typedef __m128i			vector128;
-#define Aligned128(a)		(((uintptr)(a) & (sizeof(vector128) - 1)) == 0)
-#define Zero128			(_mm_setzero_si128)
+typedef __m128i			vector;
+#define	VecSize			(sizeof(vector))
+#define Zero			(_mm_setzero_si128)
 // TODO: Delete these two macros as they are not good for performance.
-#define GetLoader128(a)		(Aligned128(a) ? load_aligned128 : load_unaligned128)
-#define GetStore128(a)		(Aligned128(a) ? store_aligned128 : store_unaligned128)
 // ENDTODO
+
+// Note: Set1 is actually a sequence of instruction.
+// 1. Loads the char into vector register	"c"
+// 2. Duplicate it into a 16-bits word		"cc"
+// 3. Duplicate it into a 32-bits word		"cccc"
+// 4. Select 32-bits word for each slots, 	"cccccccc"
+// 	(32 * 4 = 128) and shuffle them in.
 #define Set1_int8(a)		(_mm_set1_epi8(a))
 #define CmpEq_int8(a, b)	(_mm_cmpeq_epi8(a, b))
 #define Min_uint8(a, b)		(_mm_min_epu8(a, b))
 #define MoveMask_uint8(a)	(_mm_movemask_epi8(a))
 
-#endif // __SSE2__
+#elif defined(__AVX__)
 
-#if defined(__AVX__)
-
-typedef __m256i			vector256;
-#define Aligned256(a)		(((uintptr)(a) & (sizeof(vector256) - 1)) == 0)
-#define Zero256			(_mm256_setzero_si256)
-#define GetLoader256(a)		(Aligned256(a) ? load_aligned256 : load_unaligned256)
-#define GetStore256(a)		(Aligned256(a) ? store_aligned256 : store_unaligned256)
-#define Set1_int8_256(a)	(_mm256_set1_epi8(a))
-#define CmpEq_int8_256(a, b)	(_mm256_cmpeq_epi8(a, b))
-#define MoveMask_uint8_256(a)	(_mm256_movemask_epi8(a))
+typedef __m256i			vector;
+#define	VecSize			(sizeof(vector))
+#define Zero			(_mm256_setzero_si256)
+#define Set1_int8(a)		(_mm256_set1_epi8(a))
+#define CmpEq_int8(a, b)	(_mm256_cmpeq_epi8(a, b))
+#define MoveMask_uint8(a)	(_mm256_movemask_epi8(a))
 
 #endif // __AVX__
 
@@ -53,6 +54,9 @@ typedef __m256i			vector256;
 
 // Note: Returns the number of trailing 0-bytes in x, starting at the least significant bit position.
 #define ByteScanForward(a)	(BitScanForward(a) / ByteSize)
+#define Aligned(a)		(((uintptr)(a) & (VecSize - 1)) == 0)
+#define GetLoader(a)		(Aligned(a) ? load_aligned : load_unaligned)
+#define GetStore(a)		(Aligned(a) ? store_aligned : store_unaligned)
 
 #if defined(__GNUC__) || defined(__clang__)
 
@@ -84,6 +88,7 @@ typedef size_t			word;
 typedef unsigned long 		uintptr;
 typedef unsigned char 		uint8;
 typedef unsigned		uint32;
+typedef __uint16_t		uint16;	
 typedef long int		ssize_t;
 typedef __int128_t		uint128;
 typedef _Bool			bool;
@@ -103,9 +108,9 @@ static const size_t		WordAlignSize = (WordSize - 1);
 #define WordAligned(a)		((uintptr)(a) & WordAlignSize == 0)
 
 // Note: 0x01010101... for size_t
-static const size_t	LSB = ((size_t)-1 / UCharMax);
+static const size_t		LSB = ((size_t)-1 / UCharMax);
 // Note: 0x80808080... for size_t
-static const size_t	MSB = (LSB * (UCharMax / 2 + 1));
+static const size_t		MSB = (LSB * (UCharMax / 2 + 1));
 // Note: Here is how it works:
 // 1. Subtract 0x01010101... from each byte.
 // This will set the high bit of each byte that was originally zero.
@@ -149,78 +154,51 @@ AllZeros(word x)
 
 #define	ShiftFind(a, s_int)	((a) >> (ByteSize * ((s_int) % WordSize)))
 
-#if defined(__SSE2__) || defined(__aarch64__) || defined(_M_ARM64)
-function __always_inline vector128
-load_aligned128(const vector128* ptr)
+#if defined(__SSE2__) || defined(__AVX__) || defined(__aarch64__) || defined(_M_ARM64)
+function __always_inline vector
+load_aligned(const vector* ptr)
 {
 #if defined(__SSE2__)
 	return _mm_load_si128(ptr);
-#endif
-}
-
-function __always_inline vector128
-load_unaligned128(const vector128* ptr)
-{
-#if defined(__SSE2__)
-	return _mm_loadu_si128(ptr);
-#endif
-}
-
-function __always_inline void
-store_aligned128(vector128* ptr, vector128 a)
-{
-#if defined(__SSE2__)
-	_mm_store_si128(ptr, a);
-#endif
-}
-
-function __always_inline void
-store_unaligned128(vector128* ptr, vector128 a)
-{
-#if defined(__SSE2__)
-	_mm_storeu_si128(ptr, a);
-#endif
-}
-#endif // defined(__SSE2__) || defined(__aarch64__) || defined(_M_ARM64)
-
-#if defined(__AVX__)
-function __always_inline vector256
-load_aligned256(const vector256* ptr)
-{
-#if defined(__AVX__)
+#elif defined(__AVX__)
 	return _mm256_load_si256(ptr);
 #endif
 }
 
-function __always_inline vector256
-load_unaligned256(const vector256* ptr)
+function __always_inline vector
+load_unaligned(const vector* ptr)
 {
-#if defined(__AVX__)
+#if defined(__SSE2__)
+	return _mm_loadu_si128(ptr);
+#elif defined(__AVX__)
 	return _mm256_loadu_si256(ptr);
 #endif
 }
 
 function __always_inline void
-store_aligned256(vector256* ptr, vector256 a)
+store_aligned(vector* ptr, vector a)
 {
-#if defined(__AVX__)
+#if defined(__SSE2__)
+	_mm_store_si128(ptr, a);
+#elif defined(__AVX__)
 	_mm256_store_si256(ptr, a);
 #endif
 }
 
 function __always_inline void
-store_unaligned256(vector256* ptr, vector256 a)
+store_unaligned(vector* ptr, vector a)
 {
-#if defined(__AVX__)
+#if defined(__SSE2__)
+	_mm_storeu_si128(ptr, a);
+#elif defined(__AVX__)
 	_mm256_storeu_si256(ptr, a);
 #endif
 }
-#endif // defined(__AVX__)
+#endif // defined(__SSE2__) defined(__AVX__) || defined(__aarch64__) || defined(_M_ARM64)
 
 function __always_inline bool
 ft_isalpha(uint8 c)
 {
-	// A = 65; a = 97; alphabet size is 25;
 	return 	((uint8)(c - 65) <= 25) |
 		((uint8)(c - 97) <= 25);
 }
@@ -228,7 +206,6 @@ ft_isalpha(uint8 c)
 function __always_inline bool
 ft_isdigit(uint8 c)
 {
-	// '0' = 48;
 	return (uint8)(c - 48) <= 9;
 }
 
@@ -271,6 +248,7 @@ ft_write(int fd, const void* buf, size_t count)
 {
 	ssize_t ret;
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 	asm volatile (
 		"syscall"			// Notes:
 		: "=a" (ret)                    // Output: rax -> ret
@@ -282,7 +260,14 @@ ft_write(int fd, const void* buf, size_t count)
 						// RCX: Used internally by syscall to store return address
 						// R11: Gets the RFLAGS register value
 	);
-
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    asm volatile (
+        "svc #0"
+        : "=r" (ret)
+        : "r" (fd), "r" (buf), "r" (count), "r" (64)
+        : "memory"
+    );
+#endif
 
 	if (ret < 0)
 	{
@@ -297,30 +282,29 @@ function size_t
 ft_strlen(const char* s)
 {
 #if defined(__SSE2__)
-	const char* 	start = s;
-	vector128	zero = Zero128();
-	vector128*	vs;
+	const char* start = s;
+	vector		zero = Zero();
+	vector*		vs = (vector*)s;
 	uint32		mask0;
 	uint32		mask1;
 	uint32		mask2;
 	uint32		mask3;
-	word*		w_ptr = (word*)WordAlignDown(s);
-	word		mask = ShiftFind(AllZeros(*w_ptr), (const uintptr)s);
+	word		mask;
 
-
-	if (mask)
+	if (!*s)
 	{
-		return ByteScanForward(mask);
+		return 0;
 	}
 
-	while (!(mask = FirstZero(*++w_ptr)) && (uintptr)w_ptr & 15);
+	mask0 = MoveMask_uint8(CmpEq_int8(zero, load_unaligned(vs)));
 
-	if (mask)
+	if (mask0)
 	{
-		 return ((const char*)w_ptr + ByteScanForward(mask) - s);
+		return BitScanForward(mask0);
 	}
 
-	vs = (vector128*)w_ptr;
+	vs++;
+	vs = (vector*)((uintptr)vs & -VecSize);
 
 	while (true)
 	{
@@ -350,7 +334,6 @@ ft_strlen(const char* s)
 		}
 		vs += 4;
 	}
-
 #else
 	word*	w_ptr = (word*)WordAlignDown(s);
 	word	mask = ShiftFind(AllZeros(*w_ptr), (const uintptr)s);
@@ -370,40 +353,185 @@ ft_strlen(const char* s)
 function void*
 ft_memset(void* s, uint8 c, size_t n)
 {
-	void*	SStart = s;
-	void*	SEnd = s + n;
-
-	void	(*store)(vector128*, vector128) = GetStore128(s);
-	vector128	Value = Set1_int8((uint8)c);
-	void*	Bulk = s + ((n / 16) * 16);
-
-	while (s < Bulk)
+#if defined(__SSE2__)
+	void*		start = s;
+	vector*	end = (vector*)(s + n);
+	vector*	vs = (vector*)s;
+	vector	value = Set1_int8(c);
+	
+	if (n < VecSize)
 	{
-		store((vector128*)s, Value);
-		s += 16;
+		word	svalue = RepeatByteInWord(c);
+
+		if (n >= 8)
+		{
+			*(word*)s = svalue;
+			*(word*)(s - 8 + n) = svalue;
+			return s;
+		}
+		else if (n >= 4)
+		{
+			*(uint32*)s = (uint32)svalue;
+			*(uint32*)(s - 4 + n) = (uint32)svalue;
+			return s;
+		}
+		else if (n >= 2)
+		{
+			*(uint16*)s = (uint16)svalue;
+			*(uint8*)(s - 1 + n) = c;
+			return s;
+		}
+		else if (n == 1)
+		{
+			*(uint8*)s = c;
+			return s;
+		}
+		
+		return s;
+
 	}
 
-	// Note: Add tail
-	while (s < SEnd)
+	if (n == VecSize)
 	{
-		*(uint8*)s++ = (uint8)c;
+		store_unaligned(vs, value);
+		return s;
 	}
 
-	return SStart;
+	store_unaligned(vs, value);
+	store_unaligned(vs + 1, value);
+
+	if (n <= VecSize * 4)
+	{
+		store_unaligned(end - 1, value);
+		store_unaligned(end - 2, value);
+		return start;
+	}
+	
+	store_unaligned(vs + 2, value);
+	store_unaligned(vs + 3, value);
+
+	vs += 4;
+	end -= 4; 
+
+	if (n <= VecSize * 8)
+	{
+		goto FourLastVectors;
+	}
+
+	// Note: Align down s and since we already copied the previous bytes,
+	// it does not matter to overwrite them.
+	vs = (vector*)((uintptr)vs & -VecSize);
+
+	do
+	{
+		store_aligned(vs, value);
+		store_aligned(vs + 1, value);
+		store_aligned(vs + 2, value);
+		store_aligned(vs + 3, value);
+		vs += 4;
+	}
+	while (vs < end);
+
+FourLastVectors:
+	store_unaligned(end, value);
+	store_unaligned(end + 1, value);
+	store_unaligned(end + 2, value);
+	store_unaligned(end + 3, value);
+	return start;
+
+
+#else
+	uint8*	ptr;
+	word	wc = RepeatByteInWord(c);
+
+	if (!n)
+	{
+		return s;
+	}
+
+	*(uint8*)s = c;
+	*((uint8*)s + n - 1) = c;
+
+	if (n <= 2)
+	{
+		return s;
+	}
+
+	*(uint16*)(s + 1) = (uint16)wc;
+	*(uint16*)(s + n - 3) = (uint16)wc;
+
+	if (n <= 6)
+	{
+		return s;
+	}
+
+	*((uint8*)s + 3) = c;
+	*((uint8*)s + n - 4) = c;
+	
+	if (n <= 8)
+	{
+		return s;
+	}
+
+	// Note: Same as for SS2, aligning pointer.
+	ptr = s + ((uintptr)s & 3);
+	// Note: Truncate n to a multiple of 4 to not overflow.
+	n &= -4;
+
+	*(uint32*)(ptr) = (uint32)wc;
+	*(uint32*)(ptr + n - 4) = (uint32)wc;
+
+	if (n <= 8)
+	{
+		return s;
+	}
+	
+	*(word*)(ptr + 4) = wc;
+	*(word*)(ptr + n - 12) = wc;
+
+	if (n <= 24)
+	{
+		return s;
+	}
+
+	*(word*)(ptr + 12) = wc;
+	*(word*)(ptr + 20) = wc;
+	*(word*)(ptr + n - 20) = wc;
+	*(word*)(ptr + n - 28) = wc;
+
+	size_t	m = 24 + ((uintptr)s & 4);
+	ptr += m;
+	n -= m;
+
+	do
+	{
+		*(word*)(ptr) = wc;
+		*(word*)(ptr + 8) = wc;
+		*(word*)(ptr + 16) = wc;
+		*(word*)(ptr + 24) = wc;
+
+		n -= 32;
+		ptr += 32;
+
+	} while (n >= 32);
+	
+	return s;
+
+#endif
 }
 
 function void
 ft_bzero(void* s, size_t n)
 {
-	void	(*store)(vector128*, vector128) = GetStore128(s);
-	vector128	Value = Zero128();
+	void	(*store)(vector*, vector) = GetStore(s);
+	vector	Value = Zero();
 	void*	SStart = s;
 	void*	SEnd = s + n;
 	void*	Bulk = s + ((n / 16) * 16);
 
 	while (s < Bulk)
 	{
-		store((vector128*)s, Value);
+		store((vector*)s, Value);
 		s += 16;
 	}
 
@@ -422,25 +550,25 @@ ft_memcpy(void* dst, const uint8 *src, size_t n)
 		return dst;
 	}
 
-	vector128	(*load)(const vector128*);
-	void	(*store)(vector128*, vector128);
+	vector	(*load)(const vector*);
+	void	(*store)(vector*, vector);
 	void*	DstStart = dst;
 	void*	DstEnd = dst + n;
 	void*	Bulk = dst + ((n / 16) * 16);
 
-	if (Aligned128(dst) && Aligned128(src))
+	if (Aligned(dst) && Aligned(src))
 	{
-		load = load_aligned128;
-		store = store_aligned128;
+		load = load_aligned;
+		store = store_aligned;
 	} else {
-		load = load_unaligned128;
-		store = store_unaligned128;
+		load = load_unaligned;
+		store = store_unaligned;
 	}
 
 	while (dst < Bulk)
 	{
-		vector128	Value = load((const vector128*)src);
-		store((vector128*)dst, Value);
+		vector	Value = load((const vector*)src);
+		store((vector*)dst, Value);
 		dst += 16;
 		src += 16;
 	}
@@ -463,25 +591,25 @@ ft_memmove(void* dst, const uint8* src, size_t n)
 
 	uint8*	SrcEnd = (uint8*)src + n;
 	uint8*	DstEnd = (uint8*)dst + n;
-	vector128	(*load)(const vector128*);
-	void	(*store)(vector128*, vector128);
+	vector	(*load)(const vector*);
+	void	(*store)(vector*, vector);
 	uint8*	Bulk = DstEnd - ((n / 16) * 16);
 
-	if (Aligned128(SrcEnd) && Aligned128(DstEnd))
+	if (Aligned(SrcEnd) && Aligned(DstEnd))
 	{
-		load = load_aligned128;
-		store = store_aligned128;
+		load = load_aligned;
+		store = store_aligned;
 	} else {
-		load = load_unaligned128;
-		store = store_unaligned128;
+		load = load_unaligned;
+		store = store_unaligned;
 	}
 
 	while (DstEnd > Bulk)
 	{
 		DstEnd -= 16;
 		SrcEnd -= 16;
-		vector128	Value = load((const vector128*)SrcEnd);
-		store((vector128*)DstEnd, Value);
+		vector	Value = load((const vector*)SrcEnd);
+		store((vector*)DstEnd, Value);
 	}
 
 	while (DstEnd > (uint8*)dst)
@@ -563,15 +691,15 @@ ft_strlcat(char* dst, const char* src, size_t size)
 function char*
 ft_strchr(char* s, uint8 c)
 {
-	vector128	(*load)(const vector128*) = GetLoader128(s);
-	vector128	zero = Zero128();
-	vector128	Value = Set1_int8(c);
+	vector	(*load)(const vector*) = GetLoader(s);
+	vector	zero = Zero();
+	vector	Value = Set1_int8(c);
 
 	while (true)
 	{
-		vector128	Chunk = load((vector128*)s);
-		vector128	CmpV = CmpEq_int8(Chunk, Value);
-		vector128	CmpZ = CmpEq_int8(Chunk, zero);
+		vector	Chunk = load((vector*)s);
+		vector	CmpV = CmpEq_int8(Chunk, Value);
+		vector	CmpZ = CmpEq_int8(Chunk, zero);
 
 		if ((uint128)CmpV | (uint128)CmpZ)
 		{
