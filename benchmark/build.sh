@@ -20,7 +20,7 @@ show_usage() {
     echo "  $0 -f <function>           - Compare system vs optimized (specific function)"
     echo "  $0 -f <function> --full    - Compare system vs optimized vs old (specific function)"
     echo ""
-    echo "Available functions: strlen, memset"
+    echo "Available functions: strlen, memset, memcpy"
     exit 0
 }
 
@@ -49,13 +49,17 @@ int main(int argc, char **argv) {
     benchmark_memset();
     
     printf("\\n\\n=======================================================\\n\\n");
+
+	benchmark_memcpy();
+
+    printf("\\n\\n=======================================================\\n\\n");
     
     return 0;
 }
 EOF
     
     # Compile with comparison versions
-    $CC $CFLAGS main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c -I.. -o $EXEC
+    $CC $CFLAGS main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c memcpy/benchmark.c -I.. -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions standard comparison"
@@ -93,12 +97,16 @@ int main(int argc, char **argv) {
     
     printf("\\n\\n=======================================================\\n\\n");
     
+	benchmark_memcpy_full();
+
+    printf("\\n\\n=======================================================\\n\\n");
+
     return 0;
 }
 EOF
     
     # Compile with comparison versions and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c memcpy/benchmark.c common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions full comparison"
@@ -229,7 +237,7 @@ done
 # Validate function name if provided
 if [ -n "$FUNCTION" ]; then
     case $FUNCTION in
-        strlen|memset)
+        strlen|memset|memcpy)
             ;;
         *)
             echo "Error: Unknown function '$FUNCTION'"
