@@ -16,12 +16,9 @@
 
 #if defined(__SSE2__)
 
-typedef __m128i			vector;
-#define	VecSize			(sizeof(vector))
-#define Zero			(_mm_setzero_si128)
-// TODO: Delete these two macros as they are not good for performance.
-// ENDTODO
-
+typedef __m128i				vector;
+#define	VecSize				(sizeof(vector))
+#define Zero				(_mm_setzero_si128)
 // Note: Set1 is actually a sequence of instruction.
 // 1. Loads the char into vector register	"c"
 // 2. Duplicate it into a 16-bits word		"cc"
@@ -523,23 +520,7 @@ FourLastVectors:
 function void
 ft_bzero(void* s, size_t n)
 {
-	void	(*store)(vector*, vector) = GetStore(s);
-	vector	Value = Zero();
-	void*	SStart = s;
-	void*	SEnd = s + n;
-	void*	Bulk = s + ((n / 16) * 16);
-
-	while (s < Bulk)
-	{
-		store((vector*)s, Value);
-		s += 16;
-	}
-
-	// Note: Erase tail
-	while (s < SEnd)
-	{
-		*(uint8*)s++ = 0;
-	}
+	ft_memset(s, 0, n);
 }
 
 function void*
