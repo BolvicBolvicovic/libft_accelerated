@@ -5,42 +5,41 @@
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 
-#include <emmintrin.h>
-#include <immintrin.h>
+# include <emmintrin.h>
+# include <immintrin.h>
 
 // Note: Returns the number of trailing 0-bits in x, starting at the least significant bit position.
-#if defined(__BMI__)
-#define BitScanForward(a)	(_tzcnt_u64(a))
-#endif
+# if defined(__BMI__)
+#  define BitScanForward(a)	(_tzcnt_u64(a))
+# endif
 
+# if defined(__AVX2__)
 
-#if defined(__SSE2__)
+typedef __m256i				vector;
+#  define	VecSize			(sizeof(vector))
+#  define Zero				(_mm256_setzero_si256)
+#  define Set1_int8(a)		(_mm256_set1_epi8(a))
+#  define CmpEq_int8(a, b)	(_mm256_cmpeq_epi8(a, b))
+#  define Min_uint8(a, b)	(_mm256_min_epu8(a, b))
+#  define MoveMask_uint8(a)	(_mm256_movemask_epi8(a))
+
+# elif defined(__SSE2__)
 
 typedef __m128i				vector;
-#define	VecSize				(sizeof(vector))
-#define Zero				(_mm_setzero_si128)
+#  define	VecSize			(sizeof(vector))
+#  define Zero				(_mm_setzero_si128)
 // Note: Set1 is actually a sequence of instruction.
 // 1. Loads the char into vector register	"c"
 // 2. Duplicate it into a 16-bits word		"cc"
 // 3. Duplicate it into a 32-bits word		"cccc"
 // 4. Select 32-bits word for each slots, 	"cccccccc"
 // 	(32 * 4 = 128) and shuffle them in.
-#define Set1_int8(a)		(_mm_set1_epi8(a))
-#define CmpEq_int8(a, b)	(_mm_cmpeq_epi8(a, b))
-#define Min_uint8(a, b)		(_mm_min_epu8(a, b))
-#define MoveMask_uint8(a)	(_mm_movemask_epi8(a))
+#  define Set1_int8(a)		(_mm_set1_epi8(a))
+#  define CmpEq_int8(a, b)	(_mm_cmpeq_epi8(a, b))
+#  define Min_uint8(a, b)	(_mm_min_epu8(a, b))
+#  define MoveMask_uint8(a)	(_mm_movemask_epi8(a))
 
-#elif defined(__AVX__)
-
-typedef __m256i			vector;
-#define	VecSize			(sizeof(vector))
-#define Zero			(_mm256_setzero_si256)
-#define Set1_int8(a)		(_mm256_set1_epi8(a))
-#define CmpEq_int8(a, b)	(_mm256_cmpeq_epi8(a, b))
-#define MoveMask_uint8(a)	(_mm256_movemask_epi8(a))
-
-#endif // __AVX__
-
+# endif
 #endif // Defined architecture x64
 
 #if defined(__aarch64__) || defined(_M_ARM64)
@@ -52,8 +51,6 @@ typedef __m256i			vector;
 // Note: Returns the number of trailing 0-bytes in x, starting at the least significant bit position.
 #define ByteScanForward(a)	(BitScanForward(a) / ByteSize)
 #define Aligned(a)		(((uintptr)(a) & (VecSize - 1)) == 0)
-#define GetLoader(a)		(Aligned(a) ? load_aligned : load_unaligned)
-#define GetStore(a)		(Aligned(a) ? store_aligned : store_unaligned)
 
 #if defined(__GNUC__) || defined(__clang__)
 
@@ -76,14 +73,14 @@ typedef size_t			word;
 #ifndef size_t
 typedef long unsigned int	size_t;
 #endif
-typedef size_t			word;
+typedef size_t				word;
 
 #define __always_inline		inline
 
 #endif
 
-typedef unsigned long 		uintptr;
-typedef unsigned char 		uint8;
+typedef unsigned long 	uintptr;
+typedef unsigned char 	uint8;
 typedef unsigned		uint32;
 typedef __uint16_t		uint16;	
 typedef long int		ssize_t;
@@ -102,7 +99,7 @@ static const size_t		SSizeTMin = (ssize_t)-1;
 
 static const size_t		WordSize = (sizeof(word));
 static const size_t		WordAlignSize = (WordSize - 1);
-#define WordAligned(a)		((uintptr)(a) & WordAlignSize == 0)
+#define WordAligned(a)	((uintptr)(a) & WordAlignSize == 0)
 
 // Note: 0x01010101... for size_t
 static const size_t		LSB = ((size_t)-1 / UCharMax);
@@ -151,47 +148,27 @@ AllZeros(word x)
 
 #define	ShiftFind(a, s_int)	((a) >> (ByteSize * ((s_int) % WordSize)))
 
-#if defined(__SSE2__) || defined(__AVX__) || defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__SSE2__) || defined(__AVX2__) || defined(__aarch64__) || defined(_M_ARM64)
 function __always_inline vector
-load_aligned(const vector* ptr)
+LoadUnaligned(const vector* ptr)
 {
-#if defined(__SSE2__)
-	return _mm_load_si128(ptr);
-#elif defined(__AVX__)
-	return _mm256_load_si256(ptr);
-#endif
-}
-
-function __always_inline vector
-load_unaligned(const vector* ptr)
-{
-#if defined(__SSE2__)
-	return _mm_loadu_si128(ptr);
-#elif defined(__AVX__)
+# if defined(__AVX2__)
 	return _mm256_loadu_si256(ptr);
-#endif
+# elif defined(__SSE2__)
+	return _mm_loadu_si128(ptr);
+# endif
 }
 
 function __always_inline void
-store_aligned(vector* ptr, vector a)
+StoreUnaligned(vector* ptr, vector a)
 {
-#if defined(__SSE2__)
-	_mm_store_si128(ptr, a);
-#elif defined(__AVX__)
-	_mm256_store_si256(ptr, a);
-#endif
-}
-
-function __always_inline void
-store_unaligned(vector* ptr, vector a)
-{
-#if defined(__SSE2__)
-	_mm_storeu_si128(ptr, a);
-#elif defined(__AVX__)
+# if defined(__AVX2__)
 	_mm256_storeu_si256(ptr, a);
-#endif
+# elif defined(__SSE2__)
+	_mm_storeu_si128(ptr, a);
+# endif
 }
-#endif // defined(__SSE2__) defined(__AVX__) || defined(__aarch64__) || defined(_M_ARM64)
+#endif
 
 function __always_inline bool
 ft_isalpha(uint8 c)
@@ -278,22 +255,24 @@ ft_write(int fd, const void* buf, size_t count)
 function size_t
 ft_strlen(const char* s)
 {
-#if defined(__SSE2__)
+#if defined(__SSE2__) || defined(__AVX2__)
 	const char* start = s;
 	vector		zero = Zero();
 	vector*		vs = (vector*)s;
 	uint32		mask0;
+#if defined(__SSE2__) && !defined(__AVX2__)
 	uint32		mask1;
 	uint32		mask2;
 	uint32		mask3;
 	word		mask;
+#endif
 
 	if (!s || !*s)
 	{
 		return 0;
 	}
 
-	mask0 = MoveMask_uint8(CmpEq_int8(zero, load_unaligned(vs)));
+	mask0 = MoveMask_uint8(CmpEq_int8(zero, LoadUnaligned(vs)));
 
 	if (mask0)
 	{
@@ -309,12 +288,35 @@ ft_strlen(const char* s)
 
 		if (mask0)
 		{
+#if defined(__AVX2__)
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0);
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize * 2;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize * 3;
+			}
+#elif defined(__SSE2__)
 			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
 			mask1 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
 			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
 			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
 			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
 			return (const char*)vs - start + BitScanForward(mask);
+#endif
 		}
 
 		vs += 4;
@@ -322,12 +324,35 @@ ft_strlen(const char* s)
 
 		if (mask0)
 		{
+#if defined(__AVX2__)
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0);
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize * 2;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
+			if (mask0)
+			{
+				return (const char*)vs - start + BitScanForward(mask0) + VecSize * 3;
+			}
+#elif defined(__SSE2__)
 			mask0 = MoveMask_uint8(CmpEq_int8(vs[0], zero));
 			mask1 = MoveMask_uint8(CmpEq_int8(vs[1], zero));
 			mask2 = MoveMask_uint8(CmpEq_int8(vs[2], zero));
 			mask3 = MoveMask_uint8(CmpEq_int8(vs[3], zero));
 			mask  = (((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32);
 			return (const char*)vs - start + BitScanForward(mask);
+#endif
 		}
 		vs += 4;
 	}
@@ -350,7 +375,7 @@ ft_strlen(const char* s)
 function void*
 ft_memset(void* s, uint8 c, size_t n)
 {
-#if defined(__SSE2__)
+#if defined(__SSE2__) || defined(__AVX2__)
 	void*		start = s;
 	vector*	end = (vector*)(s + n);
 	vector*	vs = (vector*)s;
@@ -359,7 +384,14 @@ ft_memset(void* s, uint8 c, size_t n)
 	if (n < VecSize)
 	{
 		word	svalue = RepeatByteInWord(c);
-
+#if defined(__AVX2__)
+		if (n >= 16)
+		{
+			*(uint128*)s = (uint128)svalue << 64 | svalue;
+			*(uint128*)(s - 16 + n) = (uint128)svalue << 64 | svalue;
+			return s;
+		}
+#endif
 		if (n >= 8)
 		{
 			*(word*)s = svalue;
@@ -390,22 +422,22 @@ ft_memset(void* s, uint8 c, size_t n)
 
 	if (n == VecSize)
 	{
-		store_unaligned(vs, value);
+		StoreUnaligned(vs, value);
 		return s;
 	}
 
-	store_unaligned(vs, value);
-	store_unaligned(vs + 1, value);
+	StoreUnaligned(vs, value);
+	StoreUnaligned(vs + 1, value);
 
 	if (n <= VecSize * 4)
 	{
-		store_unaligned(end - 1, value);
-		store_unaligned(end - 2, value);
+		StoreUnaligned(end - 1, value);
+		StoreUnaligned(end - 2, value);
 		return start;
 	}
 	
-	store_unaligned(vs + 2, value);
-	store_unaligned(vs + 3, value);
+	StoreUnaligned(vs + 2, value);
+	StoreUnaligned(vs + 3, value);
 
 	vs += 4;
 	end -= 4; 
@@ -421,19 +453,19 @@ ft_memset(void* s, uint8 c, size_t n)
 
 	do
 	{
-		store_aligned(vs, value);
-		store_aligned(vs + 1, value);
-		store_aligned(vs + 2, value);
-		store_aligned(vs + 3, value);
+		*vs = value;
+		*(vs + 1) = value;
+		*(vs + 2) = value;
+		*(vs + 3) = value;
 		vs += 4;
 	}
 	while (vs < end);
 
 FourLastVectors:
-	store_unaligned(end, value);
-	store_unaligned(end + 1, value);
-	store_unaligned(end + 2, value);
-	store_unaligned(end + 3, value);
+	StoreUnaligned(end, value);
+	StoreUnaligned(end + 1, value);
+	StoreUnaligned(end + 2, value);
+	StoreUnaligned(end + 3, value);
 	return start;
 
 
@@ -526,7 +558,7 @@ ft_bzero(void* s, size_t n)
 function void*
 ft_memcpy(void* dst, const char* src, size_t n)
 {
-#if defined(__SSE2__)
+#if defined(__SSE2__) || defined(__AVX2__)
 	if (n < VecSize)
 	{
 		if (n >= 8)
@@ -558,30 +590,30 @@ ft_memcpy(void* dst, const char* src, size_t n)
 
 	if (n <= VecSize * 2)
 	{
-		store_unaligned((vector*)dst, load_unaligned((vector*)src));
-		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
+		StoreUnaligned((vector*)dst, LoadUnaligned((vector*)src));
+		StoreUnaligned((vector*)(dst - VecSize + n), LoadUnaligned((vector*)(src - VecSize + n)));
 		return dst;
 	}
 
 	if (n <= VecSize * 4)
 	{
-		store_unaligned((vector*)dst, load_unaligned((vector*)src));
-		store_unaligned((vector*)(dst + VecSize), load_unaligned((vector*)(src + VecSize)));
-		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
-		store_unaligned((vector*)(dst - 2 * VecSize + n), load_unaligned((vector*)(src - 2 * VecSize + n)));
+		StoreUnaligned((vector*)dst, LoadUnaligned((vector*)src));
+		StoreUnaligned((vector*)(dst + VecSize), LoadUnaligned((vector*)(src + VecSize)));
+		StoreUnaligned((vector*)(dst - VecSize + n), LoadUnaligned((vector*)(src - VecSize + n)));
+		StoreUnaligned((vector*)(dst - 2 * VecSize + n), LoadUnaligned((vector*)(src - 2 * VecSize + n)));
 		return dst;
 	}
 
 	if (n <= VecSize * 8)
 	{
-		store_unaligned((vector*)dst, load_unaligned((vector*)src));
-		store_unaligned((vector*)(dst + VecSize), load_unaligned((vector*)(src + VecSize)));
-		store_unaligned((vector*)(dst + 2 * VecSize), load_unaligned((vector*)(src + 2 * VecSize)));
-		store_unaligned((vector*)(dst + 3 * VecSize), load_unaligned((vector*)(src + 3 * VecSize)));
-		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
-		store_unaligned((vector*)(dst - 2 * VecSize + n), load_unaligned((vector*)(src - 2 * VecSize + n)));
-		store_unaligned((vector*)(dst - 3 * VecSize + n), load_unaligned((vector*)(src - 3 * VecSize + n)));
-		store_unaligned((vector*)(dst - 4 * VecSize + n), load_unaligned((vector*)(src - 4 * VecSize + n)));
+		StoreUnaligned((vector*)dst, LoadUnaligned((vector*)src));
+		StoreUnaligned((vector*)(dst + VecSize), LoadUnaligned((vector*)(src + VecSize)));
+		StoreUnaligned((vector*)(dst + 2 * VecSize), LoadUnaligned((vector*)(src + 2 * VecSize)));
+		StoreUnaligned((vector*)(dst + 3 * VecSize), LoadUnaligned((vector*)(src + 3 * VecSize)));
+		StoreUnaligned((vector*)(dst - VecSize + n), LoadUnaligned((vector*)(src - VecSize + n)));
+		StoreUnaligned((vector*)(dst - 2 * VecSize + n), LoadUnaligned((vector*)(src - 2 * VecSize + n)));
+		StoreUnaligned((vector*)(dst - 3 * VecSize + n), LoadUnaligned((vector*)(src - 3 * VecSize + n)));
+		StoreUnaligned((vector*)(dst - 4 * VecSize + n), LoadUnaligned((vector*)(src - 4 * VecSize + n)));
 		return dst;
 	}
 
@@ -594,21 +626,21 @@ ft_memcpy(void* dst, const char* src, size_t n)
 	if (span >= n || ((span + n) ^ span) >> 63)
 	{
 // Forward
-		vector	head  = load_unaligned((vector*)src);
+		vector	head  = LoadUnaligned((vector*)src);
 		vector*	dst_ptr = (vector*)(((uintptr)dst | (VecSize - 1)) + 1);
 		vector*	vsrc  = (vector*)((uintptr)src + (uintptr)dst_ptr - (uintptr)dst);
 		vector*	src_tail_ptr = (vector*)(src + n - VecSize * 4);
-		vector	tail0 = load_unaligned(src_tail_ptr);
-		vector	tail1 = load_unaligned(src_tail_ptr + 1);
-		vector	tail2 = load_unaligned(src_tail_ptr + 2);
-		vector	tail3 = load_unaligned(src_tail_ptr + 3);
+		vector	tail0 = LoadUnaligned(src_tail_ptr);
+		vector	tail1 = LoadUnaligned(src_tail_ptr + 1);
+		vector	tail2 = LoadUnaligned(src_tail_ptr + 2);
+		vector	tail3 = LoadUnaligned(src_tail_ptr + 3);
 
 		do
 		{
-			*dst_ptr = load_unaligned(vsrc); 
-			*(dst_ptr + 1) = load_unaligned(vsrc + 1);
-			*(dst_ptr + 2) = load_unaligned(vsrc + 2);
-			*(dst_ptr + 3) = load_unaligned(vsrc + 3);
+			*dst_ptr = LoadUnaligned(vsrc); 
+			*(dst_ptr + 1) = LoadUnaligned(vsrc + 1);
+			*(dst_ptr + 2) = LoadUnaligned(vsrc + 2);
+			*(dst_ptr + 3) = LoadUnaligned(vsrc + 3);
 
 			vsrc += 4;
 			dst_ptr += 4;
@@ -616,30 +648,30 @@ ft_memcpy(void* dst, const char* src, size_t n)
 		while (vsrc < src_tail_ptr);
 
 		dst_ptr = (vector*)(dst + n - VecSize * 4);
-		store_unaligned((vector*)dst, head);
-		store_unaligned(dst_ptr, tail0);
-		store_unaligned(dst_ptr + 1, tail1);
-		store_unaligned(dst_ptr + 2, tail2);
-		store_unaligned(dst_ptr + 3, tail3);
+		StoreUnaligned((vector*)dst, head);
+		StoreUnaligned(dst_ptr, tail0);
+		StoreUnaligned(dst_ptr + 1, tail1);
+		StoreUnaligned(dst_ptr + 2, tail2);
+		StoreUnaligned(dst_ptr + 3, tail3);
 	}
 	else
 	{
 // Backward
-		vector	tail  = load_unaligned((vector*)(src - VecSize + n));
+		vector	tail  = LoadUnaligned((vector*)(src - VecSize + n));
 		vector* dst_ptr = (vector*)(((uintptr)(dst + n - VecSize * 4 - 1) & -VecSize));
 		vector* vsrc = (vector*)((uintptr)src + (uintptr)dst_ptr - (uintptr)dst);
 		vector*	src_head_ptr = (vector*)(src);
-		vector	head0 = load_unaligned(src_head_ptr);
-		vector	head1 = load_unaligned(src_head_ptr + 1);
-		vector	head2 = load_unaligned(src_head_ptr + 2);
-		vector	head3 = load_unaligned(src_head_ptr + 3);
+		vector	head0 = LoadUnaligned(src_head_ptr);
+		vector	head1 = LoadUnaligned(src_head_ptr + 1);
+		vector	head2 = LoadUnaligned(src_head_ptr + 2);
+		vector	head3 = LoadUnaligned(src_head_ptr + 3);
 
 		do
 		{
-			*dst_ptr = load_unaligned(vsrc); 
-			*(dst_ptr + 1) = load_unaligned(vsrc + 1);
-			*(dst_ptr + 2) = load_unaligned(vsrc + 2);
-			*(dst_ptr + 3) = load_unaligned(vsrc + 3);
+			*dst_ptr = LoadUnaligned(vsrc); 
+			*(dst_ptr + 1) = LoadUnaligned(vsrc + 1);
+			*(dst_ptr + 2) = LoadUnaligned(vsrc + 2);
+			*(dst_ptr + 3) = LoadUnaligned(vsrc + 3);
 
 			vsrc -= 4;
 			dst_ptr -= 4;
@@ -647,11 +679,11 @@ ft_memcpy(void* dst, const char* src, size_t n)
 		while (vsrc > src_head_ptr);
 
 		dst_ptr = (vector*) dst;
-		store_unaligned((vector*)(dst - VecSize + n), tail);
-		store_unaligned(dst_ptr, head0);
-		store_unaligned(dst_ptr + 1, head1);
-		store_unaligned(dst_ptr + 2, head2);
-		store_unaligned(dst_ptr + 3, head3);
+		StoreUnaligned((vector*)(dst - VecSize + n), tail);
+		StoreUnaligned(dst_ptr, head0);
+		StoreUnaligned(dst_ptr + 1, head1);
+		StoreUnaligned(dst_ptr + 2, head2);
+		StoreUnaligned(dst_ptr + 3, head3);
 	}
 
 	return dst;
@@ -737,15 +769,15 @@ ft_strlcat(char* dst, const char* src, size_t size)
 function char*
 ft_strchr(char* s, uint8 c)
 {
-#if defined(__SSE2__)
+#if defined(__SSE2__) || defined(__AVX2__)
 	vector*	vs = (vector*)s;
 	vector	zero = Zero();
 	vector	value = Set1_int8(c);
 
-	vector	chunk0 = load_unaligned(vs);
-	vector	chunk1 = load_unaligned(vs + 1);
-	vector	chunk2 = load_unaligned(vs + 2);
-	vector	chunk3 = load_unaligned(vs + 3);
+	vector	chunk0 = LoadUnaligned(vs);
+	vector	chunk1 = LoadUnaligned(vs + 1);
+	vector	chunk2 = LoadUnaligned(vs + 2);
+	vector	chunk3 = LoadUnaligned(vs + 3);
 
 	chunk0 = Min_uint8(chunk0 ^ value, chunk0);
 	chunk1 = Min_uint8(chunk1 ^ value, chunk1);
@@ -753,18 +785,47 @@ ft_strchr(char* s, uint8 c)
 	chunk3 = Min_uint8(chunk3 ^ value, chunk3);
 
 	uint32	mask0 = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk0, chunk1), Min_uint8(chunk2, chunk3)), zero));
+#if defined(__SSE2__) && !defined(__AVX2__)
 	uint32	mask1;
 	uint32	mask2;
 	uint32	mask3;
+#endif
 
 	if (mask0)
 	{
+#if defined(__AVX2__)
+		mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+		if (mask0)
+		{
+			s += BitScanForward(mask0);
+			return *s == c ? s : 0;
+		}
+		mask0 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+		if (mask0)
+		{
+			s += BitScanForward(mask0) + VecSize;
+			return *s == c ? s : 0;
+		}
+		mask0 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+		if (mask0)
+		{
+			s += BitScanForward(mask0) + VecSize * 2;
+			return *s == c ? s : 0;
+		}
+		mask0 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+		if (mask0)
+		{
+			s += BitScanForward(mask0) + VecSize * 3;
+			return *s == c ? s : 0;
+		}
+#elif defined(__SSE2__)
 		mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
 		mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
 		mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
 		mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
 		s = s + BitScanForward((((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32));
 		return *s == c ? s : 0;
+#endif
 	}
 
 
@@ -781,12 +842,39 @@ ft_strchr(char* s, uint8 c)
 
 		if (mask0)
 		{
+#if defined(__AVX2__)
+			mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+			if (mask0)
+			{
+				s = (char*)vs + BitScanForward(mask0);
+				return *s == c ? s : 0;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+			if (mask0)
+			{
+				s = (char*)vs + BitScanForward(mask0) + VecSize;
+				return *s == c ? s : 0;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+			if (mask0)
+			{
+				s = (char*)vs + BitScanForward(mask0) + VecSize * 2;
+				return *s == c ? s : 0;
+			}
+			mask0 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+			if (mask0)
+			{
+				s = (char*)vs + BitScanForward(mask0) + VecSize * 3;
+				return *s == c ? s : 0;
+			}
+#elif defined(__SSE2__)
 			mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
 			mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
 			mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
 			mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
 			s = (char*)vs + BitScanForward((((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32));
 			return *s == c ? s : 0;
+#endif
 		}
 
 		vs += 4;

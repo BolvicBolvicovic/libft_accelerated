@@ -91,13 +91,13 @@ void benchmark_strlen_comparison(bool include_old) {
     if (include_old) {
         printf("String Length Benchmark - System vs Optimized vs Old (averaged over %d iterations)\n", iterations);
         printf("================================================================================================\n");
-        printf("%-20s | %-9s | %-5s | %-13s | %-15s | %-13s | %-9s | %s\n", 
+        printf("%-20s | %-9s | %-5s | %-12s | %-15s | %-13s | %-9s | %s\n", 
                "Size", "Alignment", "Cache", "System (cyc)", "Optimized (cyc)", "Old (cyc)", "Opt Ratio", "Old Ratio");
         printf("================================================================================================\n");
     } else {
         printf("String Length Benchmark - System vs Optimized (averaged over %d iterations)\n", iterations);
         printf("====================================================================================\n");
-        printf("%-20s | %-9s | %-5s | %-13s | %-15s | %s\n", 
+        printf("%-20s | %-9s | %-5s | %-12s | %-15s | %s\n", 
                "Size", "Alignment", "Cache", "System (cyc)", "Optimized (cyc)", "Opt Ratio");
         printf("====================================================================================\n");
     }

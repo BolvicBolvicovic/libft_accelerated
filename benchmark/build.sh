@@ -10,7 +10,7 @@
 CC=gcc
 CFLAGS="-O2 -march=native"
 EXEC=benchmark.out
-COMMON_FILES="common/benchmark_common.c"
+COMMON_FILES="common/benchmark_common.c common/old_wrappers.c"
 BM="benchmark.c"
 BENCHMARK_FILES="strlen/${BM} memset/${BM} memcpy/${BM} strchr/${BM}"
 
