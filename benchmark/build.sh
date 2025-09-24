@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
 EOF
     
     # Compile with comparison version and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES ${func_name}/$BM common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES ${func_name}/$BM -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with full comparison benchmark"

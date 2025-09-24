@@ -10,7 +10,7 @@
 
 // Forward declarations for old libft functions (only available in full mode) 
 #ifdef FULL_COMPARISON_MODE
-void *ft_strchr_old(void *s, char c);
+char* ft_strchr_old(const char* s, char c);
 #endif
 
 static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, size_t len, char value, int iterations, bool flush_cache, bool include_old) {
@@ -28,13 +28,28 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
 #endif
         }
     }
-    
+
+	// Prevent compiler opti
+	volatile char*	sink = NULL;
+    void* original_ptr = ptr;
     // Benchmark system strchr
     if (flush_cache) flush_cache_lines(ptr, len);
     unsigned long long start = __rdtsc();
     for (int i = 0; i < iterations; i++) {
         if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-        strchr(ptr, value);
+        sink = strchr(ptr, value);
+        if (!sink)
+        {
+            ptr = original_ptr;
+        }
+        else
+        {
+            sink = ptr++;
+        }
+        if (i == iterations - 1)
+        {
+            sink = (char*)ptr;
+        }
     }
     unsigned long long end = __rdtsc();
     system_cycles = (end - start) / iterations;
@@ -44,7 +59,19 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
     start = __rdtsc();
     for (int i = 0; i < iterations; i++) {
         if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-        ft_strchr(ptr, value);
+        sink = ft_strchr(ptr, value);
+        if (!sink)
+        {
+            ptr = original_ptr;
+        }
+        else
+        {
+            sink = ptr++;
+        }
+        if (i == iterations - 1)
+        {
+            sink = (char*)ptr;
+        }
     }
     end = __rdtsc();
     ft_cycles = (end - start) / iterations;
@@ -56,7 +83,19 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
         start = __rdtsc();
         for (int i = 0; i < iterations; i++) {
             if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-            ft_strchr_old(ptr, value);
+            sink = ft_strchr_old(ptr, value);
+        if (!sink)
+        {
+            ptr = original_ptr;
+        }
+        else
+        {
+            sink = ptr++;
+        }
+        if (i == iterations - 1)
+        {
+            sink = (char*)ptr;
+        }
         }
         end = __rdtsc();
         ft_old_cycles = (end - start) / iterations;

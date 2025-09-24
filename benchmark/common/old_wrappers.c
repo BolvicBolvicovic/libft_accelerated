@@ -25,8 +25,8 @@ void* ft_memcpy_old(void* dst, char* src, int n)
     return ft_memcpy(dst, src, n);
 }
 
-unsigned long ft_strchr_old(void* dst, char c)
+char* ft_strchr_old(const char* dst, char c)
 {
-    extern unsigned long ft_strchr(void* dst, char c);
+    extern char* ft_strchr(const char* dst, char c);
     return ft_strchr(dst, c);
 }
