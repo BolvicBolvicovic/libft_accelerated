@@ -95,8 +95,8 @@ typedef _Bool			bool;
 
 static const size_t		ByteSize = 8;
 static const size_t		UCharMax = 255;
-static const size_t		IntMin = -2147483648;
-static const size_t		IntMax = 2147483647;
+static const int		IntMin = -2147483648;
+static const int		IntMax = 2147483647;
 static const size_t		SizeTMax = ((size_t)-1);
 static const size_t		SSizeTMin = (ssize_t)-1;
 
@@ -211,7 +211,7 @@ ft_isalnum(uint8 c)
 {
 	return 	((uint8)(c - 65) <= 25) |
 		((uint8)(c - 97) <= 25) |
-		(uint8)(c - 48) <= 9;
+		((uint8)(c - 48) <= 9);
 }
 
 function __always_inline bool
@@ -288,7 +288,7 @@ ft_strlen(const char* s)
 	uint32		mask3;
 	word		mask;
 
-	if (!*s)
+	if (!s || !*s)
 	{
 		return 0;
 	}
@@ -471,7 +471,7 @@ FourLastVectors:
 	}
 
 	// Note: Same as for SS2, aligning pointer.
-	ptr = s + ((uintptr)s & 3);
+	ptr = (s | 3) + 1;
 	// Note: Truncate n to a multiple of 4 to not overflow.
 	n &= -4;
 
@@ -524,81 +524,146 @@ ft_bzero(void* s, size_t n)
 }
 
 function void*
-ft_memcpy(void* dst, const uint8 *src, size_t n)
+ft_memcpy(void* dst, const char* src, size_t n)
 {
-	if (dst == src)
+#if defined(__SSE2__)
+	if (n < VecSize)
+	{
+		if (n >= 8)
+		{
+			*(word*)dst = *(word*)src;
+			*(word*)(dst - 8 + n) = *(word*)(src - 8 + n);
+			return dst;
+		}
+		else if (n >= 4)
+		{
+			*(uint32*)dst = *(uint32*)src;
+			*(uint32*)(dst - 4 + n) = *(uint32*)(src - 4 + n);
+			return dst;
+		}
+		else if (n >= 2)
+		{
+			*(uint16*)dst = *(uint16*)src;
+			*(uint8*)(dst - 1 + n) = *(src - 1 + n);
+			return dst;
+		}
+		else if (n == 1)
+		{
+			*(uint8*)dst = *src;
+			return dst;
+		}
+		
+		return dst;
+	}
+
+	if (n <= VecSize * 2)
+	{
+		store_unaligned((vector*)dst, load_unaligned((vector*)src));
+		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
+		return dst;
+	}
+
+	if (n <= VecSize * 4)
+	{
+		store_unaligned((vector*)dst, load_unaligned((vector*)src));
+		store_unaligned((vector*)(dst + VecSize), load_unaligned((vector*)(src + VecSize)));
+		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
+		store_unaligned((vector*)(dst - 2 * VecSize + n), load_unaligned((vector*)(src - 2 * VecSize + n)));
+		return dst;
+	}
+
+	if (n <= VecSize * 8)
+	{
+		store_unaligned((vector*)dst, load_unaligned((vector*)src));
+		store_unaligned((vector*)(dst + VecSize), load_unaligned((vector*)(src + VecSize)));
+		store_unaligned((vector*)(dst + 2 * VecSize), load_unaligned((vector*)(src + 2 * VecSize)));
+		store_unaligned((vector*)(dst + 3 * VecSize), load_unaligned((vector*)(src + 3 * VecSize)));
+		store_unaligned((vector*)(dst - VecSize + n), load_unaligned((vector*)(src - VecSize + n)));
+		store_unaligned((vector*)(dst - 2 * VecSize + n), load_unaligned((vector*)(src - 2 * VecSize + n)));
+		store_unaligned((vector*)(dst - 3 * VecSize + n), load_unaligned((vector*)(src - 3 * VecSize + n)));
+		store_unaligned((vector*)(dst - 4 * VecSize + n), load_unaligned((vector*)(src - 4 * VecSize + n)));
+		return dst;
+	}
+
+	size_t	span = (uintptr)dst - (uintptr)src;
+	if (!span)
 	{
 		return dst;
 	}
 
-	vector	(*load)(const vector*);
-	void	(*store)(vector*, vector);
-	void*	DstStart = dst;
-	void*	DstEnd = dst + n;
-	void*	Bulk = dst + ((n / 16) * 16);
-
-	if (Aligned(dst) && Aligned(src))
+	if (span >= n || ((span + n) ^ span) >> 63)
 	{
-		load = load_aligned;
-		store = store_aligned;
-	} else {
-		load = load_unaligned;
-		store = store_unaligned;
+// Forward
+		vector	head  = load_unaligned((vector*)src);
+		vector*	dst_ptr = (vector*)(((uintptr)dst | (VecSize - 1)) + 1);
+		vector*	vsrc  = (vector*)((uintptr)src + (uintptr)dst_ptr - (uintptr)dst);
+		vector*	src_tail_ptr = (vector*)(src + n - VecSize * 4);
+		vector	tail0 = load_unaligned(src_tail_ptr);
+		vector	tail1 = load_unaligned(src_tail_ptr + 1);
+		vector	tail2 = load_unaligned(src_tail_ptr + 2);
+		vector	tail3 = load_unaligned(src_tail_ptr + 3);
+
+		do
+		{
+			*dst_ptr = load_unaligned(vsrc); 
+			*(dst_ptr + 1) = load_unaligned(vsrc + 1);
+			*(dst_ptr + 2) = load_unaligned(vsrc + 2);
+			*(dst_ptr + 3) = load_unaligned(vsrc + 3);
+
+			vsrc += 4;
+			dst_ptr += 4;
+		}
+		while (vsrc < src_tail_ptr);
+
+		dst_ptr = (vector*)(dst + n - VecSize * 4);
+		store_unaligned((vector*)dst, head);
+		store_unaligned(dst_ptr, tail0);
+		store_unaligned(dst_ptr + 1, tail1);
+		store_unaligned(dst_ptr + 2, tail2);
+		store_unaligned(dst_ptr + 3, tail3);
 	}
-
-	while (dst < Bulk)
+	else
 	{
-		vector	Value = load((const vector*)src);
-		store((vector*)dst, Value);
-		dst += 16;
-		src += 16;
-	}
+// Backward
+		vector	tail  = load_unaligned((vector*)(src - VecSize + n));
+		vector* dst_ptr = (vector*)(((uintptr)(dst + n - VecSize * 4 - 1) & -VecSize));
+		vector* vsrc = (vector*)((uintptr)src + (uintptr)dst_ptr - (uintptr)dst);
+		vector*	src_head_ptr = (vector*)(src);
+		vector	head0 = load_unaligned(src_head_ptr);
+		vector	head1 = load_unaligned(src_head_ptr + 1);
+		vector	head2 = load_unaligned(src_head_ptr + 2);
+		vector	head3 = load_unaligned(src_head_ptr + 3);
 
-	while (dst < DstEnd)
-	{
-		*(uint8*)dst++ = *src++;
-	}
+		do
+		{
+			*dst_ptr = load_unaligned(vsrc); 
+			*(dst_ptr + 1) = load_unaligned(vsrc + 1);
+			*(dst_ptr + 2) = load_unaligned(vsrc + 2);
+			*(dst_ptr + 3) = load_unaligned(vsrc + 3);
 
-	return DstStart;
-}
+			vsrc -= 4;
+			dst_ptr -= 4;
+		}
+		while (vsrc > src_head_ptr);
 
-function void*
-ft_memmove(void* dst, const uint8* src, size_t n)
-{
-	if ((uint8*)dst <= src || (uint8*)dst >= src + n)
-	{
-		return ft_memcpy(dst, src, n);
-	}
-
-	uint8*	SrcEnd = (uint8*)src + n;
-	uint8*	DstEnd = (uint8*)dst + n;
-	vector	(*load)(const vector*);
-	void	(*store)(vector*, vector);
-	uint8*	Bulk = DstEnd - ((n / 16) * 16);
-
-	if (Aligned(SrcEnd) && Aligned(DstEnd))
-	{
-		load = load_aligned;
-		store = store_aligned;
-	} else {
-		load = load_unaligned;
-		store = store_unaligned;
-	}
-
-	while (DstEnd > Bulk)
-	{
-		DstEnd -= 16;
-		SrcEnd -= 16;
-		vector	Value = load((const vector*)SrcEnd);
-		store((vector*)DstEnd, Value);
-	}
-
-	while (DstEnd > (uint8*)dst)
-	{
-		*--DstEnd = *--SrcEnd;
+		dst_ptr = (vector*) dst;
+		store_unaligned((vector*)(dst - VecSize + n), tail);
+		store_unaligned(dst_ptr, head0);
+		store_unaligned(dst_ptr + 1, head1);
+		store_unaligned(dst_ptr + 2, head2);
+		store_unaligned(dst_ptr + 3, head3);
 	}
 
 	return dst;
+#else
+	// TODO: Write no SIMD version
+#endif
+}
+
+function void*
+ft_memmove(void* dst, const char* src, size_t n)
+{
+	return ft_memcpy(dst, src, n);
 }
 
 function inline void
@@ -644,54 +709,89 @@ ft_itoa(char dst[12], int n)
 function size_t
 ft_strlcpy(char* dst, const char* src, size_t size)
 {
-	size_t		SrcLen = ft_strlen(src);
+	size_t		src_len = ft_strlen(src);
 
 	if (size)
 	{
-		size_t		ToCopy = SrcLen < size ? SrcLen : size - 1;
-		ft_memcpy(dst, src, ToCopy);
-		dst[ToCopy] = 0;
+		size_t		to_copy = src_len < size ? src_len : size - 1;
+		ft_memcpy(dst, src, to_copy);
+		dst[to_copy] = 0;
 	}
 
-	return SrcLen;
+	return src_len;
 }
 	
 function size_t
 ft_strlcat(char* dst, const char* src, size_t size)
 {
-	size_t	DstLen = ft_strlen(dst);
+	size_t	dst_len = ft_strlen(dst);
 
-	if (DstLen >= size)
+	if (dst_len >= size)
 	{
-		return (size + ft_strlen(src));
+		return size;
 	}
 
-	return (DstLen + ft_strlcpy(dst + DstLen, src, size - DstLen));
+	return dst_len + ft_strlcpy(dst + dst_len, src, size - dst_len);
 }
 
 function char*
 ft_strchr(char* s, uint8 c)
 {
-	vector	(*load)(const vector*) = GetLoader(s);
+#if defined(__SSE2__)
+	vector*	vs = (vector*)s;
 	vector	zero = Zero();
-	vector	Value = Set1_int8(c);
+	vector	value = Set1_int8(c);
+
+	vector	chunk0 = load_unaligned(vs);
+	vector	chunk1 = load_unaligned(vs + 1);
+	vector	chunk2 = load_unaligned(vs + 2);
+	vector	chunk3 = load_unaligned(vs + 3);
+
+	chunk0 = Min_uint8(chunk0 ^ value, chunk0);
+	chunk1 = Min_uint8(chunk1 ^ value, chunk1);
+	chunk2 = Min_uint8(chunk2 ^ value, chunk2);
+	chunk3 = Min_uint8(chunk3 ^ value, chunk3);
+
+	uint32	mask0 = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk0, chunk1), Min_uint8(chunk2, chunk3)), zero));
+	uint32	mask1;
+	uint32	mask2;
+	uint32	mask3;
+
+	if (mask0)
+	{
+		mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+		mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+		mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+		mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+		s = s + BitScanForward((((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32));
+		return *s == c ? s : 0;
+	}
+
+
+	vs = (vector*)((uintptr)s & -64) + 4;
 
 	while (true)
 	{
-		vector	Chunk = load((vector*)s);
-		vector	CmpV = CmpEq_int8(Chunk, Value);
-		vector	CmpZ = CmpEq_int8(Chunk, zero);
+		chunk0 = Min_uint8(*vs ^ value, *vs);
+		chunk1 = Min_uint8(*(vs + 1) ^ value, *(vs + 1));
+		chunk2 = Min_uint8(*(vs + 2) ^ value, *(vs + 2));
+		chunk3 = Min_uint8(*(vs + 3) ^ value, *(vs + 3));
 
-		if ((uint128)CmpV | (uint128)CmpZ)
+		mask0 = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk0, chunk1), Min_uint8(chunk2, chunk3)), zero));
+
+		if (mask0)
 		{
-			size_t VLen = BitScanForward(MoveMask_uint8(CmpV));
-			size_t ZLen = BitScanForward(MoveMask_uint8(CmpZ)); 	
-
-			return VLen <= ZLen ? s + VLen : NULL;
+			mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+			mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+			mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+			mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+			s = (char*)vs + BitScanForward((((word)mask1 << 16) | (word)mask0) | ((((word)mask3 << 16) | (word)mask2) << 32));
+			return *s == c ? s : 0;
 		}
 
-		s += 16;
+		vs += 4;
 	}
+#endif
 }
 
 #endif /* LIBFT_H */

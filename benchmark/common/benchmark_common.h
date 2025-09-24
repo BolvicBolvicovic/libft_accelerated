@@ -38,8 +38,10 @@ char* create_random_string(size_t len);
 void benchmark_strlen(void);
 void benchmark_memset(void);
 void benchmark_memcpy(void);
+void benchmark_strchr(void);
 void benchmark_strlen_full(void);
 void benchmark_memset_full(void);
 void benchmark_memcpy_full(void);
+void benchmark_strchr_full(void);
 
 #endif /* BENCHMARK_COMMON_H */

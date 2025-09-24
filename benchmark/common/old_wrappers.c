@@ -19,8 +19,14 @@ void* ft_memset_old(void* s, int c, int n)
     return ft_memset(s, c, n);
 }
 
-void* ft_memcpy_old(void* s, int c, int n)
+void* ft_memcpy_old(void* dst, char* src, int n)
 {
-    extern void *ft_memcpy(void* s, int c, int n);
-    return ft_memcpy(s, c, n);
+    extern void *ft_memcpy(void* dst, char* src, int n);
+    return ft_memcpy(dst, src, n);
+}
+
+unsigned long ft_strchr_old(void* dst, char c)
+{
+    extern unsigned long ft_strchr(void* dst, char c);
+    return ft_strchr(dst, c);
 }

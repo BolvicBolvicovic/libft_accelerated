@@ -11,6 +11,8 @@ CC=gcc
 CFLAGS="-O2 -march=native"
 EXEC=benchmark.out
 COMMON_FILES="common/benchmark_common.c"
+BM="benchmark.c"
+BENCHMARK_FILES="strlen/${BM} memset/${BM} memcpy/${BM} strchr/${BM}"
 
 # Function to show usage
 show_usage() {
@@ -20,7 +22,7 @@ show_usage() {
     echo "  $0 -f <function>           - Compare system vs optimized (specific function)"
     echo "  $0 -f <function> --full    - Compare system vs optimized vs old (specific function)"
     echo ""
-    echo "Available functions: strlen, memset, memcpy"
+    echo "Available functions: strlen, memset, memcpy, strchr"
     exit 0
 }
 
@@ -53,13 +55,17 @@ int main(int argc, char **argv) {
 	benchmark_memcpy();
 
     printf("\\n\\n=======================================================\\n\\n");
+
+	benchmark_strchr();
+
+    printf("\\n\\n=======================================================\\n\\n");
     
     return 0;
 }
 EOF
     
     # Compile with comparison versions
-    $CC $CFLAGS main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c memcpy/benchmark.c -I.. -o $EXEC
+    $CC $CFLAGS main_temp.c $COMMON_FILES $BENCHMARK_FILES -I.. -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions standard comparison"
@@ -101,12 +107,16 @@ int main(int argc, char **argv) {
 
     printf("\\n\\n=======================================================\\n\\n");
 
+	benchmark_strchr_full();
+
+    printf("\\n\\n=======================================================\\n\\n");
+
     return 0;
 }
 EOF
     
     # Compile with comparison versions and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES strlen/benchmark.c memset/benchmark.c memcpy/benchmark.c common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES $BENCHMARK_FILES -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions full comparison"
@@ -147,7 +157,7 @@ int main(int argc, char **argv) {
 EOF
     
     # Compile with comparison version
-    $CC $CFLAGS main_temp.c $COMMON_FILES ${func_name}/benchmark.c -I.. -o $EXEC
+    $CC $CFLAGS main_temp.c $COMMON_FILES ${func_name}/$BM -I.. -o $EXEC
 
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with standard comparison benchmark"
@@ -188,7 +198,7 @@ int main(int argc, char **argv) {
 EOF
     
     # Compile with comparison version and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES ${func_name}/benchmark.c common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES ${func_name}/$BM common/old_wrappers.c -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with full comparison benchmark"
@@ -237,7 +247,7 @@ done
 # Validate function name if provided
 if [ -n "$FUNCTION" ]; then
     case $FUNCTION in
-        strlen|memset|memcpy)
+        strlen|memset|memcpy|strchr)
             ;;
         *)
             echo "Error: Unknown function '$FUNCTION'"
