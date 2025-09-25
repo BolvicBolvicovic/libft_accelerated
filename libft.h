@@ -893,6 +893,9 @@ ft_strrchr(char* s, uint8 c)
 #if defined(__AVX2__)
 	word	wmask;
 #else
+	uint32	mask1;
+	uint32	mask2;
+	uint32	mask3;
 #endif
 
 	if (mask)
@@ -911,6 +914,12 @@ ft_strrchr(char* s, uint8 c)
 			return *s == c ? s : 0;
 		}
 #else
+		mask = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+		mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+		mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+		mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+		s += len - 1 - BitScanBackward(((mask1 << 16) | mask) | ((((word)mask3 << 16) | (word)mask2) << 32));
+		return *s == c ? s : 0;
 #endif
 	}
 
@@ -940,6 +949,12 @@ ft_strrchr(char* s, uint8 c)
 				return *s == c ? s : 0;
 			}
 #else
+			mask = MoveMask_uint8(CmpEq_int8(chunk0, zero));
+			mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
+			mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
+			mask3 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
+			s = (char*)vs + 63 - BitScanBackward((((word)mask1 << 16) | (word)mask) | ((((word)mask3 << 16) | (word)mask2) << 32));
+			return *s == c ? s : 0;
 #endif
 		}
 
