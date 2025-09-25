@@ -767,5 +767,87 @@ int	main(void)
 	assert(ft_strchr(strchr_single_char, 'Y') == NULL);
 	assert(ft_strchr(strchr_single_char, '\0') == strchr_single_char + 1);
 
+	// Note: tests for ft_strrchr
+	// Using same strings as strchr for consistency
+	char*	str1_strrchr = "This is a longer string to test strchr function.";
+	char*	str2_strrchr = "Hello, World!";
+	char*	str3_strrchr = "aaaaaa";
+	char*	empty_str_strrchr = "";
+	
+	// Normal tests - find existing characters (should return LAST occurrence)
+	assert(ft_strrchr(str1_strrchr, 'T') == str1_strrchr);         // First and only 'T'
+	assert(ft_strrchr(str1_strrchr, 'a') == str1_strrchr + 8);     // Only one 'a' 
+	assert(ft_strrchr(str1_strrchr, 't') == str1_strrchr + 43);    // Last 't' (in "function")
+	assert(ft_strrchr(str1_strrchr, 's') == str1_strrchr + 32);    // Last 's' (in "test")
+	assert(ft_strrchr(str1_strrchr, 'r') == str1_strrchr + 37);    // Last 'r' (in "strchr")
+	assert(ft_strrchr(str1_strrchr, '.') == str1_strrchr + 47);    // Last character before null
+	
+	assert(ft_strrchr(str2_strrchr, 'H') == str2_strrchr);         // First and only 'H'
+	assert(ft_strrchr(str2_strrchr, 'o') == str2_strrchr + 8);     // Last 'o' (in "World")
+	assert(ft_strrchr(str2_strrchr, 'l') == str2_strrchr + 10);     // Last 'l' (in "World")
+	assert(ft_strrchr(str2_strrchr, '!') == str2_strrchr + 12);    // Last character
+	
+	// Test finding repeated character (should return LAST occurrence)
+	assert(ft_strrchr(str3_strrchr, 'a') == str3_strrchr + 5);     // Last 'a'
+	
+	// Edge case - search for null terminator
+	assert(ft_strrchr(str1_strrchr, '\0') == str1_strrchr + ft_strlen(str1_strrchr));
+	assert(ft_strrchr(str2_strrchr, '\0') == str2_strrchr + ft_strlen(str2_strrchr));
+	assert(ft_strrchr(empty_str_strrchr, '\0') == empty_str_strrchr);
+	
+	// Normal tests - character not found
+	assert(ft_strrchr(str1_strrchr, 'z') == NULL);                 // Not in string
+	assert(ft_strrchr(str1_strrchr, 'Z') == NULL);                 // Wrong case
+	assert(ft_strrchr(str2_strrchr, 'x') == NULL);                 // Not in string
+	assert(ft_strrchr(str2_strrchr, 'h') == NULL);                 // Wrong case (has 'H')
+	
+	// Edge case - empty string
+	assert(ft_strrchr(empty_str_strrchr, 'a') == NULL);            // Not found in empty string
+	
+	// Test with special characters
+	char* special_str_strrchr = "Hello\tWorld\n!";
+	assert(ft_strrchr(special_str_strrchr, '\t') == special_str_strrchr + 5);
+	assert(ft_strrchr(special_str_strrchr, '\n') == special_str_strrchr + 11);
+	assert(ft_strrchr(special_str_strrchr, ' ') == NULL);          // Space not in string
+	
+	// Test with numbers and symbols
+	char* mixed_str_strrchr = "Test123!@#$";
+	assert(ft_strrchr(mixed_str_strrchr, '1') == mixed_str_strrchr + 4);
+	assert(ft_strrchr(mixed_str_strrchr, '3') == mixed_str_strrchr + 6);
+	assert(ft_strrchr(mixed_str_strrchr, '@') == mixed_str_strrchr + 8);
+	assert(ft_strrchr(mixed_str_strrchr, '$') == mixed_str_strrchr + 10);
+	assert(ft_strrchr(mixed_str_strrchr, '%') == NULL);
+	
+	// Test with all printable ASCII characters (same as strchr)
+	char ascii_str_strrchr[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+	assert(ft_strrchr(ascii_str_strrchr, ' ') == ascii_str_strrchr);        // First and only space
+	assert(ft_strrchr(ascii_str_strrchr, '~') == ascii_str_strrchr + 94);   // Last
+	assert(ft_strrchr(ascii_str_strrchr, 'A') == ascii_str_strrchr + 33);   // Letter
+	assert(ft_strrchr(ascii_str_strrchr, '0') == ascii_str_strrchr + 16);   // Digit
+	
+	// Edge case - single character string
+	char* strrchr_single_char = "X";
+	assert(ft_strrchr(strrchr_single_char, 'X') == strrchr_single_char);
+	assert(ft_strrchr(strrchr_single_char, 'Y') == NULL);
+	assert(ft_strrchr(strrchr_single_char, '\0') == strrchr_single_char + 1);
+	
+	// Additional tests to highlight difference between strchr and strrchr
+	char* repeated_chars = "abcabcabc";
+	assert(ft_strchr(repeated_chars, 'a') == repeated_chars);          // First 'a' (position 0)
+	assert(ft_strrchr(repeated_chars, 'a') == repeated_chars + 6);     // Last 'a' (position 6)
+	assert(ft_strchr(repeated_chars, 'b') == repeated_chars + 1);      // First 'b' (position 1) 
+	assert(ft_strrchr(repeated_chars, 'b') == repeated_chars + 7);     // Last 'b' (position 7)
+	assert(ft_strchr(repeated_chars, 'c') == repeated_chars + 2);      // First 'c' (position 2)
+	assert(ft_strrchr(repeated_chars, 'c') == repeated_chars + 8);     // Last 'c' (position 8)
+	
+	// Test with multiple occurrences in longer string
+	char* multi_occur = "The quick brown fox jumps over the lazy dog";
+	assert(ft_strchr(multi_occur, 'o') == multi_occur + 12);           // First 'o' in "brown"
+	assert(ft_strrchr(multi_occur, 'o') == multi_occur + 41);          // Last 'o' in "dog"
+	assert(ft_strchr(multi_occur, 'e') == multi_occur + 2);            // First 'e' in "The"
+	assert(ft_strrchr(multi_occur, 'e') == multi_occur + 33);          // Last 'e' in "over"
+	assert(ft_strchr(multi_occur, ' ') == multi_occur + 3);            // First space
+	assert(ft_strrchr(multi_occur, ' ') == multi_occur + 39);          // Last space
+
 	return (0);
 }

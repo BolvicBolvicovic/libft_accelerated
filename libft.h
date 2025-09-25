@@ -11,6 +11,7 @@
 // Note: Returns the number of trailing 0-bits in x, starting at the least significant bit position.
 # if defined(__BMI__)
 #  define BitScanForward(a)	(_tzcnt_u64(a))
+#  define BitScanBackward(a) (_lzcnt_u64(a))
 # endif
 
 # if defined(__AVX2__)
@@ -149,6 +150,10 @@ AllZeros(word x)
 #define	ShiftFind(a, s_int)	((a) >> (ByteSize * ((s_int) % WordSize)))
 
 #if defined(__SSE2__) || defined(__AVX2__) || defined(__aarch64__) || defined(_M_ARM64)
+# define SIMD_SUPPORTED 1
+#endif
+
+#if defined(SIMD_SUPPORTED)
 function __always_inline vector
 LoadUnaligned(const vector* ptr)
 {
@@ -255,7 +260,7 @@ ft_write(int fd, const void* buf, size_t count)
 function size_t
 ft_strlen(const char* s)
 {
-#if defined(__SSE2__) || defined(__AVX2__)
+#if defined(SIMD_SUPPORTED)
 	const char* start = s;
 	vector		zero = Zero();
 	vector*		vs = (vector*)s;
@@ -375,7 +380,7 @@ ft_strlen(const char* s)
 function void*
 ft_memset(void* s, uint8 c, size_t n)
 {
-#if defined(__SSE2__) || defined(__AVX2__)
+#if defined(SIMD_SUPPORTED)
 	void*		start = s;
 	vector*	end = (vector*)(s + n);
 	vector*	vs = (vector*)s;
@@ -558,7 +563,7 @@ ft_bzero(void* s, size_t n)
 function void*
 ft_memcpy(void* dst, const char* src, size_t n)
 {
-#if defined(__SSE2__) || defined(__AVX2__)
+#if defined(SIMD_SUPPORTED)
 	if (n < VecSize)
 	{
 		if (n >= 8)
@@ -769,7 +774,7 @@ ft_strlcat(char* dst, const char* src, size_t size)
 function char*
 ft_strchr(char* s, uint8 c)
 {
-#if defined(__SSE2__) || defined(__AVX2__)
+#if defined(SIMD_SUPPORTED)
 	vector*	vs = (vector*)s;
 	vector	zero = Zero();
 	vector	value = Set1_int8(c);
@@ -785,7 +790,9 @@ ft_strchr(char* s, uint8 c)
 	chunk3 = Min_uint8(chunk3 ^ value, chunk3);
 
 	uint32	mask0 = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk0, chunk1), Min_uint8(chunk2, chunk3)), zero));
-#if defined(__SSE2__) && !defined(__AVX2__)
+#if defined(__AVX2__)
+	word	wmask;
+#else
 	uint32	mask1;
 	uint32	mask2;
 	uint32	mask3;
@@ -794,31 +801,19 @@ ft_strchr(char* s, uint8 c)
 	if (mask0)
 	{
 #if defined(__AVX2__)
-		mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
-		if (mask0)
+		wmask = (uint32)MoveMask_uint8(CmpEq_int8(chunk0, zero)) | ((word)MoveMask_uint8(CmpEq_int8(chunk1, zero)) << 32);
+		if (wmask)
 		{
-			s += BitScanForward(mask0);
+			s += BitScanForward(wmask);
 			return *s == c ? s : 0;
 		}
-		mask0 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
-		if (mask0)
+		wmask = (uint32)MoveMask_uint8(CmpEq_int8(chunk2, zero)) | ((word)MoveMask_uint8(CmpEq_int8(chunk3, zero)) << 32);
+		if (wmask)
 		{
-			s += BitScanForward(mask0) + VecSize;
+			s += BitScanForward(wmask) + 64;
 			return *s == c ? s : 0;
 		}
-		mask0 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
-		if (mask0)
-		{
-			s += BitScanForward(mask0) + VecSize * 2;
-			return *s == c ? s : 0;
-		}
-		mask0 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
-		if (mask0)
-		{
-			s += BitScanForward(mask0) + VecSize * 3;
-			return *s == c ? s : 0;
-		}
-#elif defined(__SSE2__)
+#else
 		mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
 		mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
 		mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
@@ -843,31 +838,19 @@ ft_strchr(char* s, uint8 c)
 		if (mask0)
 		{
 #if defined(__AVX2__)
-			mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
-			if (mask0)
+			wmask = (uint32)MoveMask_uint8(CmpEq_int8(chunk0, zero)) | ((word)MoveMask_uint8(CmpEq_int8(chunk1, zero)) << 32);
+			if (wmask)
 			{
-				s = (char*)vs + BitScanForward(mask0);
+				s = (char*)vs + BitScanForward(wmask);
 				return *s == c ? s : 0;
 			}
-			mask0 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
-			if (mask0)
+			wmask = (uint32)MoveMask_uint8(CmpEq_int8(chunk2, zero)) | ((word)MoveMask_uint8(CmpEq_int8(chunk3, zero)) << 32);
+			if (wmask)
 			{
-				s = (char*)vs + BitScanForward(mask0) + VecSize;
+				s = (char*)vs + BitScanForward(mask0) + 64;
 				return *s == c ? s : 0;
 			}
-			mask0 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
-			if (mask0)
-			{
-				s = (char*)vs + BitScanForward(mask0) + VecSize * 2;
-				return *s == c ? s : 0;
-			}
-			mask0 = MoveMask_uint8(CmpEq_int8(chunk3, zero));
-			if (mask0)
-			{
-				s = (char*)vs + BitScanForward(mask0) + VecSize * 3;
-				return *s == c ? s : 0;
-			}
-#elif defined(__SSE2__)
+#else
 			mask0 = MoveMask_uint8(CmpEq_int8(chunk0, zero));
 			mask1 = MoveMask_uint8(CmpEq_int8(chunk1, zero));
 			mask2 = MoveMask_uint8(CmpEq_int8(chunk2, zero));
@@ -879,6 +862,91 @@ ft_strchr(char* s, uint8 c)
 
 		vs += 4;
 	}
+#endif
+	// TODO: Implement no SIMD version
+}
+
+function char*
+ft_strrchr(char* s, uint8 c)
+{
+#if defined(SIMD_SUPPORTED)
+	size_t	len = ft_strlen(s);
+	if (!c)
+	{
+		return s + len;
+	}
+	vector*	vs = (vector*)(s + len - 4 * VecSize);
+	vector	zero = Zero();
+	vector	value = Set1_int8(c);
+
+	vector	chunk3 = LoadUnaligned(vs + 3);
+	vector	chunk2 = LoadUnaligned(vs + 2);
+	vector	chunk1 = LoadUnaligned(vs + 1);
+	vector	chunk0 = LoadUnaligned(vs);
+
+	chunk3 = Min_uint8(chunk3 ^ value, chunk3);
+	chunk2 = Min_uint8(chunk2 ^ value, chunk2);
+	chunk1 = Min_uint8(chunk1 ^ value, chunk1);
+	chunk0 = Min_uint8(chunk0 ^ value, chunk0);
+
+	uint32	mask = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk3, chunk2), Min_uint8(chunk1, chunk0)), zero));
+#if defined(__AVX2__)
+	word	wmask;
+#else
+#endif
+
+	if (mask)
+	{
+#if defined(__AVX2__)
+		wmask = (uint32)MoveMask_uint8(CmpEq_int8(chunk2, zero)) |  ((word)MoveMask_uint8(CmpEq_int8(chunk3, zero)) << 32);
+		if (wmask)
+		{
+			s += len - BitScanBackward(wmask) - 1;
+			return *s == c ? s : 0;
+		}
+		wmask = ((word)MoveMask_uint8(CmpEq_int8(chunk1, zero)) << 32) | (uint32)MoveMask_uint8(CmpEq_int8(chunk1, zero));
+		if (wmask)
+		{
+			s += len - BitScanBackward(wmask) - 65;
+			return *s == c ? s : 0;
+		}
+#else
+#endif
+	}
+
+	vs = (vector*)(((uintptr)vs | (VecSize - 1)) + 1) - 4;
+
+	while (true)
+	{
+		chunk3 = Min_uint8(*(vs + 3) ^ value, *(vs + 3));
+		chunk2 = Min_uint8(*(vs + 2) ^ value, *(vs + 2));
+		chunk1 = Min_uint8(*(vs + 1) ^ value, *(vs + 1));
+		chunk0 = Min_uint8(*vs ^ value, *vs);
+
+		mask = MoveMask_uint8(CmpEq_int8(Min_uint8(Min_uint8(chunk3, chunk2), Min_uint8(chunk1, chunk0)), zero));
+		if (mask)
+		{
+#if defined(__AVX2__)
+			wmask = ((word)MoveMask_uint8(CmpEq_int8(chunk3, zero)) << 32) | (uint32)MoveMask_uint8(CmpEq_int8(chunk2, zero));
+			if (wmask)
+			{
+				s = (char*)vs + 127 - BitScanBackward(wmask);
+				return *s == c ? s : 0;
+			}
+			wmask = ((word)MoveMask_uint8(CmpEq_int8(chunk1, zero)) << 32) | (uint32)MoveMask_uint8(CmpEq_int8(chunk1, zero));
+			if (wmask)
+			{
+				s = (char*)vs + 63 - BitScanBackward(wmask);
+				return *s == c ? s : 0;
+			}
+#else
+#endif
+		}
+
+		vs += 4;
+	}
+
+
 #endif
 }
 
