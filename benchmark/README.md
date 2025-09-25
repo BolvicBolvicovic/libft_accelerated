@@ -67,8 +67,11 @@ The output will depend on what was built:
 
 Currently supported functions:
 
-- `strlen` - String length calculation with SIMD optimizations
-- `memset` - Memory setting with vectorized operations
+- `strlen` - String length
+- `memset` - Memory setting
+- `memcpy` - Memory copy 
+- `strchr` - Byte finder
+- `strncmp`- String compare
 
 ## Benchmark Features
 
