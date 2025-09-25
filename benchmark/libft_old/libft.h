@@ -45,8 +45,8 @@ size_t	ft_strlcat(char *dest, const char *src, size_t size); // Done
 int		ft_toupper(int c); // Done
 int		ft_tolower(int c); // Done
 char	*ft_strchr(char *s, int c); // Done
-char	*ft_strrchr(char *s, int c);
-int		ft_strncmp(const char *s1, const char *s2, size_t n);
+char	*ft_strrchr(char *s, int c); // Done
+int		ft_strncmp(const char *s1, const char *s2, size_t n); // Done
 void	*ft_memchr(void *s, int c, int n);
 int		ft_memcmp(void *s1, void *s2, int n);
 char	*ft_strnstr(const char *big, const char *little, size_t len);

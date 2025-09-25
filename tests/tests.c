@@ -849,5 +849,123 @@ int	main(void)
 	assert(ft_strchr(multi_occur, ' ') == multi_occur + 3);            // First space
 	assert(ft_strrchr(multi_occur, ' ') == multi_occur + 39);          // Last space
 
+	// Note: tests for ft_strncmp
+	char* strncmp_str1 = "Hello, World!";
+	char* strncmp_str2 = "Hello, World!";
+	char* strncmp_str3 = "Hello, Universe!";
+	char* strncmp_str4 = "Hello";
+	char* strncmp_str5 = "hELLO, WORLD!";
+	char* strncmp_empty = "";
+	
+	// Basic equality tests
+	assert(ft_strncmp(strncmp_str1, strncmp_str2, 13) == 0);  // Identical strings
+	assert(ft_strncmp(strncmp_str1, strncmp_str1, 13) == 0);  // Same string with itself
+	assert(ft_strncmp(strncmp_empty, strncmp_empty, 0) == 0); // Empty strings
+	assert(ft_strncmp(strncmp_empty, strncmp_empty, 1) == 0); // Empty strings with n > 0
+	
+	// Partial comparison tests - identical prefixes
+	assert(ft_strncmp(strncmp_str1, strncmp_str3, 7) == 0);   // "Hello, " part identical
+	assert(ft_strncmp(strncmp_str1, strncmp_str4, 5) == 0);   // "Hello" part identical
+	assert(ft_strncmp(strncmp_str1, strncmp_str3, 6) == 0);   // "Hello," part identical
+	
+	// Difference detection tests
+	assert(ft_strncmp(strncmp_str1, strncmp_str3, 8) != 0);   // Differs at "W" vs "U"
+	assert(ft_strncmp(strncmp_str1, strncmp_str3, 13) != 0);  // Full comparison - different
+	assert(ft_strncmp(strncmp_str1, strncmp_str5, 1) != 0);   // Case difference at first char
+	
+	// Test return value signs (positive/negative)
+	assert(ft_strncmp("abc", "abd", 3) < 0);   // 'c' < 'd'
+	assert(ft_strncmp("abd", "abc", 3) > 0);   // 'd' > 'c'
+	assert(ft_strncmp("A", "a", 1) < 0);       // 'A' < 'a' (ASCII values)
+	assert(ft_strncmp("a", "A", 1) > 0);       // 'a' > 'A' (ASCII values)
+	
+	// Edge case - n = 0 (should always return 0)
+	assert(ft_strncmp("different", "strings", 0) == 0);
+	assert(ft_strncmp("abc", "xyz", 0) == 0);
+	assert(ft_strncmp(strncmp_str1, strncmp_str3, 0) == 0);
+	
+	// Edge case - n = 1 (compare only first character)
+	assert(ft_strncmp("abc", "axz", 1) == 0);  // Both start with 'a'
+	assert(ft_strncmp("abc", "bxz", 1) < 0);   // 'a' < 'b'
+	assert(ft_strncmp("bxz", "abc", 1) > 0);   // 'b' > 'a'
+	
+	// Empty string comparisons
+	assert(ft_strncmp("", "", 10) == 0);       // Both empty
+	assert(ft_strncmp("abc", "", 1) > 0);      // Non-empty vs empty
+	assert(ft_strncmp("", "abc", 1) < 0);      // Empty vs non-empty
+	assert(ft_strncmp("abc", "", 0) == 0);     // n=0 with empty string
+	
+	// One string shorter than n
+	assert(ft_strncmp("short", "shortlong", 10) < 0);  // First ends earlier
+	assert(ft_strncmp("shortlong", "short", 10) > 0);  // Second ends earlier
+	assert(ft_strncmp("test", "test", 10) == 0);       // Both end before n
+	
+	// Null terminator handling
+	char strncmp_null_test1[] = "test\0hidden";
+	char strncmp_null_test2[] = "test\0different";
+	assert(ft_strncmp(strncmp_null_test1, strncmp_null_test2, 10) == 0);  // Should stop at first null
+	assert(ft_strncmp("test", "test\0extra", 5) == 0);  // Should stop at null in second string
+	
+	// Special characters and numbers
+	assert(ft_strncmp("test123", "test456", 4) == 0);   // Identical prefix
+	assert(ft_strncmp("test123", "test456", 5) < 0);    // '1' < '4'
+	assert(ft_strncmp("test!@#", "test$%^", 4) == 0);   // Identical prefix
+	assert(ft_strncmp("test!@#", "test$%^", 5) < 0);    // '!' < '$'
+	
+	// Long strings test
+	char* strncmp_long1 = "This is a very long string to test strncmp function with extended content and multiple words.";
+	char* strncmp_long2 = "This is a very long string to test strncmp function with different content and multiple words.";
+	char* strncmp_long3 = "This is a very long string to test strncmp function with extended content and multiple words.";
+	
+	assert(ft_strncmp(strncmp_long1, strncmp_long3, 100) == 0);  // Identical long strings
+	assert(ft_strncmp(strncmp_long1, strncmp_long2, 50) == 0);   // Identical up to difference point
+	assert(ft_strncmp(strncmp_long1, strncmp_long2, 70) != 0);   // Includes difference ("extended" vs "different")
+	
+	// Test with exact difference positions
+	assert(ft_strncmp("abcdef", "abcxyz", 3) == 0);    // Same first 3 chars
+	assert(ft_strncmp("abcdef", "abcxyz", 4) < 0);     // 'd' < 'x'
+	assert(ft_strncmp("abcxyz", "abcdef", 4) > 0);     // 'x' > 'd'
+	
+	// ASCII boundary tests
+	char strncmp_ascii1[] = "test\x7F";  // DEL character
+	char strncmp_ascii2[] = "test\x80";  // Extended ASCII
+	assert(ft_strncmp(strncmp_ascii1, strncmp_ascii2, 5) < 0);  // 0x7F < 0x80
+	
+	// Single character strings
+	assert(ft_strncmp("a", "a", 1) == 0);
+	assert(ft_strncmp("a", "b", 1) < 0);
+	assert(ft_strncmp("z", "a", 1) > 0);
+	assert(ft_strncmp("A", "a", 1) < 0);  // Uppercase comes before lowercase in ASCII
+	
+	// Multiple differences - should stop at first difference
+	assert(ft_strncmp("abc", "axz", 2) < 0);  // Should compare 'b' vs 'x' at position 1
+	assert(ft_strncmp("axz", "abc", 2) > 0);  // Should compare 'x' vs 'b' at position 1
+	
+	// Large n values (larger than string lengths)
+	assert(ft_strncmp("short", "short", 1000) == 0);
+	assert(ft_strncmp("abc", "abd", 1000) < 0);
+	assert(ft_strncmp("xyz", "abc", 1000) > 0);
+	
+	// Strings with repeating patterns
+	assert(ft_strncmp("aaaa", "aaab", 3) == 0);  // First 3 identical
+	assert(ft_strncmp("aaaa", "aaab", 4) < 0);   // 'a' < 'b' at position 3
+	assert(ft_strncmp("abababab", "abababcd", 6) == 0);  // First 6 identical
+	assert(ft_strncmp("abababab", "abababcd", 7) < 0);   // 'a' < 'c' at position 6
+	
+	// Mixed content with spaces and punctuation
+	char* strncmp_mixed1 = "Hello, world! How are you?";
+	char* strncmp_mixed2 = "Hello, world! How old are you?";
+	assert(ft_strncmp(strncmp_mixed1, strncmp_mixed2, 18) == 0);  // Same up to "are"
+	assert(ft_strncmp(strncmp_mixed1, strncmp_mixed2, 20) != 0);  // Difference at "are" vs "old"
+	
+	// All printable ASCII characters test
+	char strncmp_full_ascii1[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+	char strncmp_full_ascii2[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+	char strncmp_full_ascii3[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}.";
+	
+	assert(ft_strncmp(strncmp_full_ascii1, strncmp_full_ascii2, 95) == 0);  // Identical
+	assert(ft_strncmp(strncmp_full_ascii1, strncmp_full_ascii3, 94) == 0);  // Same except last char
+	assert(ft_strncmp(strncmp_full_ascii1, strncmp_full_ascii3, 95) > 0);   // '~' > '.'
+
 	return (0);
 }
