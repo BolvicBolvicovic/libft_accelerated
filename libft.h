@@ -696,7 +696,34 @@ ft_memcpy(void* dst, const char* src, size_t n)
 
 	return dst;
 #else
-	// TODO: Write no SIMD version
+// TODO: Opti by copying 8 by 8
+	if (!dst || !src || dst == src)
+	{
+		return dst;
+	}
+
+	char*	ptr = dst;
+
+	if ((uintptr)dst > (uintptr)src && (uintptr)dst < (uintptr)src + n)
+	{
+		ptr += n;
+		src += n;
+
+		while (n--)
+		{
+			*ptr-- = *src--;
+		}
+
+		*ptr-- = *src--;
+		return dst;
+	}
+
+	while (n--)
+	{
+		*ptr++ = *src++;
+	}
+
+	return dst;
 #endif
 }
 
@@ -966,7 +993,6 @@ ft_strrchr(char* s, uint8 c)
 		vs += 4;
 	}
 #else
-#define SIMD_SUPPORTED
 	const uint8*	str = (void*)s;
 	uintptr			pos = -1;
 
@@ -974,13 +1000,18 @@ ft_strrchr(char* s, uint8 c)
 	{
 		if (*str == c)
 		{
-			pos = str - s;
+			pos = (uintptr)str - (uintptr)s;
 		}
+		str++;
+	}
+
+	if (*str == c)
+	{
+		return (void*)str;
 	}
 	
-	return pos == -1 ? 0 : s + pos;
+	return pos == (uintptr)-1 ? 0 : s + pos;
 #endif
-// TODO: write no SIMD version
 }
 
 function int
