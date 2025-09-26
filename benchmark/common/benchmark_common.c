@@ -12,7 +12,7 @@ volatile size_t result;
 // Force cache eviction
 void flush_cache_lines(void* ptr, size_t size) {
     const size_t cache_line_size = 64;
-    char* p = (char*)ptr;
+    char* p = (char*)((uintptr_t)ptr & ~(cache_line_size - 1));
     for (size_t i = 0; i < size; i += cache_line_size) {
         __builtin_ia32_clflush(p + i);
     }

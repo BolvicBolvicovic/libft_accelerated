@@ -11,7 +11,7 @@
 // Forward declarations for old libft functions (only available in full mode) 
 #ifdef FULL_COMPARISON_MODE
 int
-ft_strcmp_old(const char* s, const char* c, unsigned long n);
+ft_strncmp_old(const char* s, const char* c, unsigned long n);
 #endif
 
 static void benchmark_strncmp_comparison_cache(const char* test_name, void* ptr, size_t len, char* value, int iterations, bool flush_cache, bool include_old) {

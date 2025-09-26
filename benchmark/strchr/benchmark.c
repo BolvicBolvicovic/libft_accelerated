@@ -33,10 +33,10 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
 	volatile char*	sink = NULL;
     void* original_ptr = ptr;
     // Benchmark system strchr
-    if (flush_cache) flush_cache_lines(ptr, len);
+    if (flush_cache) flush_cache_lines(original_ptr, len);
     unsigned long long start = __rdtsc();
     for (int i = 0; i < iterations; i++) {
-        if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
+        if (flush_cache && i % 100 == 0) flush_cache_lines(original_ptr, len);
         sink = strchr(ptr, value);
         if (!sink)
         {
@@ -55,10 +55,10 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
     system_cycles = (end - start) / iterations;
     
     // Benchmark ft_strchr (optimized)
-    if (flush_cache) flush_cache_lines(ptr, len);
+    if (flush_cache) flush_cache_lines(original_ptr, len);
     start = __rdtsc();
     for (int i = 0; i < iterations; i++) {
-        if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
+        if (flush_cache && i % 100 == 0) flush_cache_lines(original_ptr, len);
         sink = ft_strchr(ptr, value);
         if (!sink)
         {
@@ -79,10 +79,10 @@ static void benchmark_strchr_comparison_cache(const char* test_name, void* ptr, 
     // Benchmark ft_strchr_old if requested
 #ifdef FULL_COMPARISON_MODE
     if (include_old) {
-        if (flush_cache) flush_cache_lines(ptr, len);
+        if (flush_cache) flush_cache_lines(original_ptr, len);
         start = __rdtsc();
         for (int i = 0; i < iterations; i++) {
-            if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
+            if (flush_cache && i % 100 == 0) flush_cache_lines(original_ptr, len);
             sink = ft_strchr_old(ptr, value);
         if (!sink)
         {

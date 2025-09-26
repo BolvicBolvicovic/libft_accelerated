@@ -912,7 +912,7 @@ int	main(void)
 	assert(ft_strncmp("test!@#", "test$%^", 4) == 0);   // Identical prefix
 	assert(ft_strncmp("test!@#", "test$%^", 5) < 0);    // '!' < '$'
 	
-	// Long strings test
+	// Long strings test - 128+ bytes to test vectorized implementation
 	char* strncmp_long1 = "This is a very long string to test strncmp function with extended content and multiple words.";
 	char* strncmp_long2 = "This is a very long string to test strncmp function with different content and multiple words.";
 	char* strncmp_long3 = "This is a very long string to test strncmp function with extended content and multiple words.";
@@ -920,6 +920,91 @@ int	main(void)
 	assert(ft_strncmp(strncmp_long1, strncmp_long3, 100) == 0);  // Identical long strings
 	assert(ft_strncmp(strncmp_long1, strncmp_long2, 50) == 0);   // Identical up to difference point
 	assert(ft_strncmp(strncmp_long1, strncmp_long2, 70) != 0);   // Includes difference ("extended" vs "different")
+	
+	// Very long strings (256+ bytes) to test multiple 128-byte chunks
+	char strncmp_very_long1[512];
+	char strncmp_very_long2[512];
+	char strncmp_very_long3[512];
+	
+	// Fill with repeating pattern - identical strings
+	for (int i = 0; i < 510; i++) {
+		strncmp_very_long1[i] = 'A' + (i % 26);
+		strncmp_very_long2[i] = 'A' + (i % 26);
+	}
+	strncmp_very_long1[510] = '\0';
+	strncmp_very_long2[510] = '\0';
+	
+	// Create third string identical except for position 300 (in 3rd 128-byte chunk)
+	for (int i = 0; i < 510; i++) {
+		strncmp_very_long3[i] = 'A' + (i % 26);
+	}
+	strncmp_very_long3[300] = 'Z';  // Different character at position 300
+	strncmp_very_long3[510] = '\0';
+	
+	// Test identical very long strings
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long2, 511) == 0);
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long2, 256) == 0);  // First 2 chunks
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long2, 384) == 0);  // First 3 chunks
+	
+	// Test difference in 3rd chunk (after 256 bytes)
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long3, 299) == 0);  // Before difference
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long3, 301) != 0);  // Includes difference
+	assert(ft_strncmp(strncmp_very_long1, strncmp_very_long3, 400) != 0);  // Well past difference
+	
+	// Test boundary conditions around 128-byte chunks
+	char strncmp_boundary1[200];
+	char strncmp_boundary2[200];
+	
+	// Identical for first 127 bytes, different at 128th byte
+	for (int i = 0; i < 127; i++) {
+		strncmp_boundary1[i] = 'X';
+		strncmp_boundary2[i] = 'X';
+	}
+	strncmp_boundary1[127] = 'A';
+	strncmp_boundary2[127] = 'B';
+	for (int i = 128; i < 199; i++) {
+		strncmp_boundary1[i] = 'Y';
+		strncmp_boundary2[i] = 'Y';
+	}
+	strncmp_boundary1[199] = '\0';
+	strncmp_boundary2[199] = '\0';
+	
+	assert(ft_strncmp(strncmp_boundary1, strncmp_boundary2, 127) == 0);   // Before difference
+	assert(ft_strncmp(strncmp_boundary1, strncmp_boundary2, 128) < 0);    // Includes difference 'A' < 'B'
+	assert(ft_strncmp(strncmp_boundary2, strncmp_boundary1, 128) > 0);    // Reverse: 'B' > 'A'
+	
+	// Test exact 128-byte strings
+	char strncmp_exact128_1[129];
+	char strncmp_exact128_2[129];
+	
+	for (int i = 0; i < 128; i++) {
+		strncmp_exact128_1[i] = 'M';
+		strncmp_exact128_2[i] = 'M';
+	}
+	strncmp_exact128_1[128] = '\0';
+	strncmp_exact128_2[128] = '\0';
+	
+	// Make them different at the very last byte (127th position)
+	strncmp_exact128_2[127] = 'N';
+	
+	assert(ft_strncmp(strncmp_exact128_1, strncmp_exact128_1, 128) == 0);  // Same string
+	assert(ft_strncmp(strncmp_exact128_1, strncmp_exact128_2, 127) == 0);  // Same first 127
+	assert(ft_strncmp(strncmp_exact128_1, strncmp_exact128_2, 128) < 0);   // Different at 127th: 'M' < 'N'
+	
+	// Test very long identical strings (1000+ bytes)
+	char strncmp_huge1[1024];
+	char strncmp_huge2[1024];
+	
+	for (int i = 0; i < 1023; i++) {
+		strncmp_huge1[i] = 'Q';
+		strncmp_huge2[i] = 'Q';
+	}
+	strncmp_huge1[1023] = '\0';
+	strncmp_huge2[1023] = '\0';
+	
+	assert(ft_strncmp(strncmp_huge1, strncmp_huge2, 1024) == 0);  // Identical huge strings
+	assert(ft_strncmp(strncmp_huge1, strncmp_huge2, 500) == 0);   // Partial comparison
+	assert(ft_strncmp(strncmp_huge1, strncmp_huge2, 768) == 0);   // 6 chunks of 128 bytes
 	
 	// Test with exact difference positions
 	assert(ft_strncmp("abcdef", "abcxyz", 3) == 0);    // Same first 3 chars

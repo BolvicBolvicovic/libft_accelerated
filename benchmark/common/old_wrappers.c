@@ -36,7 +36,7 @@ ft_strchr_old(const char* dst, char c)
 }
 
 int	
-ft_strncmp(const char* s1, const char* s2, unsigned long n)
+ft_strncmp_old(const char* s1, const char* s2, unsigned long n)
 {
     extern int ft_strncmp(const char* s1, const char* s2, unsigned long n);
 	return ft_strncmp(s1, s2, n);
