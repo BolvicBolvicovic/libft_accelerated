@@ -6,7 +6,7 @@
      ?  (void) (0)						\
      : __assert_fail (#expr, __FILE__, __LINE__, __ASSERT_FUNCTION))
 
-function void
+static void
 __assert_fail (const char* __assertion, const char* __file,
            unsigned int __line, const char* __function)
 {

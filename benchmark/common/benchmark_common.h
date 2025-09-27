@@ -40,10 +40,12 @@ void benchmark_memset(void);
 void benchmark_memcpy(void);
 void benchmark_strchr(void);
 void benchmark_strncmp(void);
+void benchmark_memchr(void);
 void benchmark_strlen_full(void);
 void benchmark_memset_full(void);
 void benchmark_memcpy_full(void);
 void benchmark_strchr_full(void);
 void benchmark_strncmp_full(void);
+void benchmark_memchr_full(void);
 
 #endif /* BENCHMARK_COMMON_H */

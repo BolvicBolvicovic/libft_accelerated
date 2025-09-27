@@ -69,9 +69,10 @@ Currently supported functions:
 
 - `strlen` - String length
 - `memset` - Memory setting
-- `memcpy` - Memory copy 
+- `memcpy` - Memory copy
 - `strchr` - Byte finder
 - `strncmp`- String compare
+- `memchr` - Memory character search
 
 ## Benchmark Features
 

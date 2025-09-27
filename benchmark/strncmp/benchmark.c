@@ -4,139 +4,202 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-
 #include "../../libft.h"
 #include "../common/benchmark_common.h"
 
+// Configuration for improved benchmark
+#define BUFLEN_SMALL    256     // For small string tests
+#define BUFLEN_MEDIUM   2048    // For medium string tests  
+#define BUFLEN_LARGE    8192    // For large string tests
+#define ITERATIONS      1000    // Number of iterations per test
+
 // Forward declarations for old libft functions (only available in full mode) 
 #ifdef FULL_COMPARISON_MODE
-int
-ft_strncmp_old(const char* s, const char* c, unsigned long n);
+int ft_strncmp_old(const char* s1, const char* s2, size_t n);
 #endif
 
-static void benchmark_strncmp_comparison_cache(const char* test_name, void* ptr, size_t len, char* value, int iterations, bool flush_cache, bool include_old) {
-    unsigned long long system_cycles = 0;
-    unsigned long long ft_cycles = 0;
-    unsigned long long ft_old_cycles = 0;
+// Improved strncmp benchmark with variable comparison patterns
+static size_t benchmark_strncmp_variable_pattern(int (*strncmp_func)(const char*, const char*, size_t), size_t buflen, const char* test_name) {
+    char *str1 = malloc(buflen);
+    char *str2 = malloc(buflen);
+    if (!str1 || !str2) {
+        free(str1);
+        free(str2);
+        return 0;
+    }
     
-    // Warm up (optional - only for cached tests)
-    if (!flush_cache) {
-        for (int i = 0; i < 10; i++) {
-            strncmp(ptr, value, len);
-            ft_strncmp(ptr, value, len);
-#ifdef FULL_COMPARISON_MODE
-            if (include_old) ft_strncmp_old(ptr, value, len);
-#endif
+    size_t i;
+    size_t comparison_results = 0;
+    size_t early_exits = 0;
+    size_t full_comparisons = 0;
+    
+    // Initialize strings with base content
+    for (size_t j = 0; j < buflen - 1; j++) {
+        str1[j] = 'a' + (j % 26);
+        str2[j] = 'a' + (j % 26);
+    }
+    str1[buflen - 1] = '\0';
+    str2[buflen - 1] = '\0';
+    
+    // Vary comparison patterns during iterations
+    for (i = 0; i < ITERATIONS; i++) {
+        // Variable comparison length
+        size_t cmp_len = (buflen / 2) + (i % (buflen / 4));
+        if (cmp_len >= buflen) cmp_len = buflen - 1;
+        
+        // Create different comparison scenarios
+        if (i % 5 == 0) {
+            // Equal strings - full comparison needed
+            memcpy(str2, str1, cmp_len);
+            full_comparisons++;
+        } else if (i % 5 == 1) {
+            // Early difference - should exit quickly
+            str2[0] = str1[0] + 1;
+            early_exits++;
+        } else if (i % 5 == 2) {
+            // Middle difference
+            size_t diff_pos = cmp_len / 2;
+            str2[diff_pos] = str1[diff_pos] + 1;
+        } else if (i % 5 == 3) {
+            // Late difference
+            size_t diff_pos = cmp_len - 10;
+            if (diff_pos >= cmp_len) diff_pos = cmp_len - 1;
+            str2[diff_pos] = str1[diff_pos] + 1;
+        } else {
+            // Mixed pattern - modify multiple positions
+            str2[i % (cmp_len/4)] = str1[i % (cmp_len/4)] + (i % 3);
+            str2[cmp_len/2] = str1[cmp_len/2] + (i % 2);
+        }
+        
+        // Perform the comparison
+        int result = strncmp_func(str1, str2, cmp_len);
+        comparison_results += (result < 0) ? 1 : (result > 0) ? 2 : 0;
+        
+        // Occasionally modify base strings to vary patterns
+        if (i % 100 == 0) {
+            size_t mod_pos = i % (buflen - 1);
+            str1[mod_pos] = 'A' + (i % 26);
+            str2[mod_pos] = 'A' + (i % 26);
         }
     }
     
-    // Benchmark system strncmp
-    if (flush_cache) flush_cache_lines(ptr, len);
-    unsigned long long start = __rdtsc();
-    for (int i = 0; i < iterations; i++) {
-        if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-        strncmp(ptr, value, len);
-    }
-    unsigned long long end = __rdtsc();
-    system_cycles = (end - start) / iterations;
+    free(str1);
+    free(str2);
+    return comparison_results * 1000 + early_exits * 100 + full_comparisons;
+}
+
+// Benchmark with aligned/unaligned string addresses
+static void benchmark_strncmp_alignment(size_t buflen, const char* size_desc, bool include_old) {
+    unsigned long long start, end;
+    size_t cs;
     
-    // Benchmark ft_strncmp (optimized)
-    if (flush_cache) flush_cache_lines(ptr, len);
+    printf("%-20s Tests:\n", size_desc);
+    printf("  Function         | Alignment | Cycles/Call | Checksum    | Scenarios     | Relative Performance\n");
+    printf("  -------------------------------------------------------------------------------------------\n");
+    
+    // System strncmp - aligned
     start = __rdtsc();
-    for (int i = 0; i < iterations; i++) {
-        if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-        ft_strncmp(ptr, value, len);
-    }
+    cs = benchmark_strncmp_variable_pattern(strncmp, buflen, "system");
     end = __rdtsc();
-    ft_cycles = (end - start) / iterations;
+    unsigned long long system_cycles = (end - start) / ITERATIONS;
+    size_t early_exits = (cs % 1000) / 100;
+    size_t full_comps = cs % 100;
+    printf("  %-15s | %-9s | %11llu | %11zu | E%zu/F%zu | %s\n", 
+           "system strncmp", "aligned", system_cycles, cs, early_exits, full_comps, "baseline");
     
-    // Benchmark ft_strncmp_old if requested
+    // ft_strncmp - aligned  
+    start = __rdtsc();
+    cs = benchmark_strncmp_variable_pattern((int (*)(const char*, const char*, size_t))ft_strncmp, buflen, "optimized");
+    end = __rdtsc();
+    unsigned long long ft_cycles = (end - start) / ITERATIONS;
+    double ft_ratio = (double)ft_cycles / system_cycles;
+    early_exits = (cs % 1000) / 100;
+    full_comps = cs % 100;
+    printf("  %-15s | %-9s | %11llu | %11zu | E%zu/F%zu | %.2fx %s\n", 
+           "ft_strncmp", "aligned", ft_cycles, cs, early_exits, full_comps, ft_ratio,
+           ft_ratio < 1.0 ? "(faster)" : "(slower)");
+    
 #ifdef FULL_COMPARISON_MODE
     if (include_old) {
-        if (flush_cache) flush_cache_lines(ptr, len);
         start = __rdtsc();
-        for (int i = 0; i < iterations; i++) {
-            if (flush_cache && i % 100 == 0) flush_cache_lines(ptr, len);
-            ft_strncmp_old(ptr, value, len);
-        }
+        cs = benchmark_strncmp_variable_pattern((int (*)(const char*, const char*, size_t))ft_strncmp_old, buflen, "old");
         end = __rdtsc();
-        ft_old_cycles = (end - start) / iterations;
+        unsigned long long ft_old_cycles = (end - start) / ITERATIONS;
+        double old_ratio = (double)ft_old_cycles / system_cycles;
+        early_exits = (cs % 1000) / 100;
+        full_comps = cs % 100;
+        printf("  %-15s | %-9s | %11llu | %11zu | E%zu/F%zu | %.2fx %s\n", 
+               "ft_strncmp_old", "aligned", ft_old_cycles, cs, early_exits, full_comps, old_ratio,
+               old_ratio < 1.0 ? "(faster)" : "(slower)");
     }
 #endif
-    
-    // Calculate ratios
-    double opt_ratio = (double)ft_cycles / system_cycles;
-    double old_ratio = include_old ? (double)ft_old_cycles / system_cycles : 0.0;
-    
-    // Print results with alignment info
-    const char* alignment = ((uintptr_t)ptr & 15) == 0 ? "Aligned" : "Unaligned";
-    const char* cache_state = flush_cache ? "Cold" : "Hot";
-    
-    if (include_old) {
-        printf("%-20s | %-9s | %-5s | %13llu | %15llu | %13llu | %9.2fx | %.2fx\n", 
-               test_name, alignment, cache_state, system_cycles, ft_cycles, ft_old_cycles, opt_ratio, old_ratio);
-    } else {
-        printf("%-20s | %-9s | %-5s | %13llu | %15llu | %.2fx\n", 
-               test_name, alignment, cache_state, system_cycles, ft_cycles, opt_ratio);
+
+    // Test unaligned access patterns
+    char *str1_unaligned = malloc(buflen + 16);
+    char *str2_unaligned = malloc(buflen + 16);
+    if (str1_unaligned && str2_unaligned) {
+        // Create unaligned strings
+        char *str1_offset = str1_unaligned + 5;
+        char *str2_offset = str2_unaligned + 9; // Different offset
+        
+        // Initialize with pattern
+        for (size_t j = 0; j < buflen - 1; j++) {
+            str1_offset[j] = 'a' + (j % 26);
+            str2_offset[j] = 'a' + (j % 26);
+        }
+        str1_offset[buflen - 1] = '\0';
+        str2_offset[buflen - 1] = '\0';
+        
+        // Quick unaligned test for ft_strncmp only
+        start = __rdtsc();
+        size_t unaligned_results = 0;
+        
+        for (size_t i = 0; i < ITERATIONS; i++) {
+            size_t cmp_len = (buflen / 2) + (i % (buflen / 4));
+            if (cmp_len >= buflen) cmp_len = buflen - 1;
+            
+            // Vary comparison patterns
+            if (i % 3 == 0) {
+                str2_offset[0] = str1_offset[0] + 1; // Early diff
+            } else if (i % 3 == 1) {
+                memcpy(str2_offset, str1_offset, cmp_len); // Equal
+            } else {
+                str2_offset[cmp_len/2] = str1_offset[cmp_len/2] + 1; // Mid diff
+            }
+            
+            int result = ft_strncmp(str1_offset, str2_offset, cmp_len);
+            unaligned_results += (result < 0) ? 1 : (result > 0) ? 2 : 0;
+        }
+        
+        end = __rdtsc();
+        unsigned long long unaligned_cycles = (end - start) / ITERATIONS;
+        double unaligned_ratio = (double)unaligned_cycles / system_cycles;
+        
+        printf("  %-15s | %-9s | %11llu | %11zu | Mixed     | %.2fx %s\n", 
+               "ft_strncmp", "unaligned", unaligned_cycles, unaligned_results, unaligned_ratio,
+               unaligned_ratio < 1.0 ? "(faster)" : "(slower)");
+        
+        free(str1_unaligned);
+        free(str2_unaligned);
     }
+    
+    printf("\n");
 }
 
 void benchmark_strncmp_comparison(bool include_old) {
-    const int iterations = 50000;
-	char* test_value = create_random_string(100000);
+    printf("=== IMPROVED STRNCMP BENCHMARK ===\n");
+    printf("Using variable comparison pattern technique with %d iterations per test\n\n", ITERATIONS);
     
-    // Create test buffers of different sizes with both aligned and unaligned versions
-    test_string short_ts = create_test_strings(10);
-    test_string mid_ts = create_test_strings(1000);
-    test_string long_ts = create_test_strings(10000);
-    test_string very_long_ts = create_test_strings(100000);
+    // Test different string sizes
+    benchmark_strncmp_alignment(BUFLEN_SMALL, "Small (256 chars)", include_old);
+    benchmark_strncmp_alignment(BUFLEN_MEDIUM, "Medium (2KB)", include_old);
+    benchmark_strncmp_alignment(BUFLEN_LARGE, "Large (8KB)", include_old);
     
-    if (include_old) {
-        printf("String Comparaison Until n Benchmark - System vs Optimized vs Old (averaged over %d iterations)\n", iterations);
-        printf("==============================================================================================\n");
-        printf("%-20s | %-9s | %-4s | %-12s | %-15s | %-13s | %-9s | %s\n", 
-               "Size", "Alignment", "Cache", "System (cyc)", "Optimized (cyc)", "Old (cyc)", "Opt Ratio", "Old Ratio");
-        printf("==============================================================================================\n");
-    } else {
-        printf("String Comparaison Until n Benchmark - System vs Optimized (averaged over %d iterations)\n", iterations);
-        printf("==================================================================================\n");
-        printf("%-20s | %-9s | %-4s | %-12s | %-15s | %s\n", 
-               "Size", "Alignment", "Cache", "System (cyc)", "Optimized (cyc)", "Opt Ratio");
-        printf("==================================================================================\n");
-    }
-    
-    // Test all combinations: aligned/unaligned × cached/uncached
-    benchmark_strncmp_comparison_cache("Short (10 bytes)", short_ts.aligned_str, short_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Short (10 bytes)", short_ts.unaligned_str, short_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Short (10 bytes)", short_ts.aligned_str, short_ts.length, test_value, iterations, true, include_old);
-    benchmark_strncmp_comparison_cache("Short (10 bytes)", short_ts.unaligned_str, short_ts.length, test_value, iterations, true, include_old);
-    
-    printf("----------------------------------------------------------------------------------\n");
-    
-    benchmark_strncmp_comparison_cache("Mid (1K bytes)", mid_ts.aligned_str, mid_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Mid (1K bytes)", mid_ts.unaligned_str, mid_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Mid (1K bytes)", mid_ts.aligned_str, mid_ts.length, test_value, iterations, true, include_old);
-    benchmark_strncmp_comparison_cache("Mid (1K bytes)", mid_ts.unaligned_str, mid_ts.length, test_value, iterations, true, include_old);
-    
-    printf("----------------------------------------------------------------------------------\n");
-    
-    benchmark_strncmp_comparison_cache("Long (10K bytes)", long_ts.aligned_str, long_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Long (10K bytes)", long_ts.unaligned_str, long_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Long (10K bytes)", long_ts.aligned_str, long_ts.length, test_value, iterations, true, include_old);
-    benchmark_strncmp_comparison_cache("Long (10K bytes)", long_ts.unaligned_str, long_ts.length, test_value, iterations, true, include_old);
-    
-    printf("----------------------------------------------------------------------------------\n");
-    
-    benchmark_strncmp_comparison_cache("Very Long (100K)", very_long_ts.aligned_str, very_long_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Very Long (100K)", very_long_ts.unaligned_str, very_long_ts.length, test_value, iterations, false, include_old);
-    benchmark_strncmp_comparison_cache("Very Long (100K)", very_long_ts.aligned_str, very_long_ts.length, test_value, iterations, true, include_old);
-    benchmark_strncmp_comparison_cache("Very Long (100K)", very_long_ts.unaligned_str, very_long_ts.length, test_value, iterations, true, include_old);
-    
-    // Cleanup
-    free_test_strings(&short_ts);
-    free_test_strings(&mid_ts);
-    free_test_strings(&long_ts);
-    free_test_strings(&very_long_ts);
+    printf("=== SUMMARY ===\n");
+    printf("This benchmark creates mixed comparison scenarios: early differences (E),\n");
+    printf("full comparisons (F), middle/late differences for realistic patterns.\n");
+    printf("Early exits should be faster, full comparisons exercise the entire algorithm.\n");
+    printf("Checksum encodes comparison results and scenario distribution.\n");
 }
 
 // Wrapper functions for compatibility

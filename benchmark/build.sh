@@ -11,7 +11,7 @@ CC=gcc
 CFLAGS="-O2 -march=native"
 EXEC=benchmark.out
 COMMON_FILES="common/benchmark_common.c"
-OLD_WRAPPER_FILES="common/old_wrappers.c"
+OLD_IMPLEMENTATION_FILES="common/old_implementations.c"
 BM="benchmark.c"
 BENCHMARK_FILES="strlen/${BM} memset/${BM} memcpy/${BM} strchr/${BM} strncmp/${BM}"
 
@@ -69,8 +69,8 @@ int main(int argc, char **argv) {
 }
 EOF
     
-    # Compile with comparison versions
-    $CC $CFLAGS main_temp.c $COMMON_FILES $BENCHMARK_FILES -I.. -o $EXEC
+    # Compile with comparison versions - link with new libft.a
+    $CC $CFLAGS main_temp.c $COMMON_FILES $BENCHMARK_FILES -I.. ../libft.a -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions standard comparison"
@@ -124,8 +124,8 @@ int main(int argc, char **argv) {
 }
 EOF
     
-    # Compile with comparison versions and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES $OLD_WRAPPER_FILES $BENCHMARK_FILES -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    # Compile with comparison versions and old implementations - link with new optimized archive
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES $OLD_IMPLEMENTATION_FILES $BENCHMARK_FILES -I.. ../libft.a -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with all functions full comparison"
@@ -165,8 +165,8 @@ int main(int argc, char **argv) {
 }
 EOF
     
-    # Compile with comparison version
-    $CC $CFLAGS main_temp.c $COMMON_FILES ${func_name}/$BM -I.. -o $EXEC
+    # Compile with comparison version - link with new libft.a
+    $CC $CFLAGS main_temp.c $COMMON_FILES ${func_name}/$BM -I.. ../libft.a -o $EXEC
 
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with standard comparison benchmark"
@@ -206,8 +206,8 @@ int main(int argc, char **argv) {
 }
 EOF
     
-    # Compile with comparison version and old library
-    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES $OLD_WRAPPER_FILES ${func_name}/$BM -I.. -Ilibft_old -Llibft_old -lft -o $EXEC
+    # Compile with comparison version and old implementations - link with new optimized archive
+    $CC $CFLAGS -DFULL_COMPARISON_MODE main_temp.c $COMMON_FILES $OLD_IMPLEMENTATION_FILES ${func_name}/$BM -I.. ../libft.a -o $EXEC
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built $EXEC with full comparison benchmark"
@@ -287,3 +287,4 @@ fi
 
 echo ""
 echo "Build complete! Run with: ./$EXEC"
+rm *.o

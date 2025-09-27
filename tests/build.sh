@@ -1,7 +1,9 @@
 #!/bin/bash
 
 CC=gcc
+CFLAGS="-g -march=native -Wall -Wextra -Werror"
 EXEC=tester.out
 FILES=tests.c
+LIB="-L.. -lft"
 
-${CC} -I. ${FILES} -g -march=native -o ${EXEC} -Wall -Wextra -Werror
+$CC $CFLAGS -I.. $FILES $LIB -o $EXEC
