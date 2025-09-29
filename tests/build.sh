@@ -6,4 +6,4 @@ EXEC=tester.out
 FILES=tests.c
 LIB="-L.. -lft"
 
-$CC $CFLAGS -I.. $FILES $LIB -o $EXEC
+cd .. && rm libft.a *.o; ./build.sh && cd tests && $CC $CFLAGS -I.. $FILES $LIB -o $EXEC
